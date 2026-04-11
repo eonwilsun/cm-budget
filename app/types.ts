@@ -19,7 +19,60 @@ export interface ColumnMapping {
   credit?: string;
 }
 
-export type AppState = "idle" | "mapping" | "dashboard";
+// ---------------------------------------------------------------------------
+// Budget-report types
+// ---------------------------------------------------------------------------
+
+/** Raw workbook held in memory so any sheet can be (re-)parsed without re-reading the file. */
+export interface WorkbookMeta {
+  sheetNames: string[];
+  buffer: ArrayBuffer;
+}
+
+/** A single column in the budget spreadsheet. */
+export interface BudgetColumn {
+  key: string;           // unique key: "col_N"
+  label: string;         // display label (e.g. "Jan-24", "Budget 2025")
+  monthIndex: number | null; // 0=Jan … 11=Dec, null if not a month
+  isBudget: boolean;     // true for "Budget {year}" column
+  isTotal: boolean;      // true for "Total" / "YTD" / "Full Year" column
+  colIndex: number;      // index in the raw 2-D array
+}
+
+export type BudgetRowType = "section" | "subsection" | "item" | "total" | "net";
+
+export type SectionType = "income" | "expenditure" | "unknown";
+
+export interface BudgetRow {
+  code: string;
+  name: string;
+  notes: string;
+  /** Values keyed by BudgetColumn.key. null = blank cell. */
+  values: Record<string, number | null>;
+  rowType: BudgetRowType;
+  sectionName: string;
+  sectionType: SectionType;
+  subsectionName: string; // "" when no subsection
+  indent: number;
+}
+
+export interface ParsedBudget {
+  year: number | null;
+  columns: BudgetColumn[];
+  rows: BudgetRow[];
+  sheetName: string;
+}
+
+// ---------------------------------------------------------------------------
+// App state machine
+// ---------------------------------------------------------------------------
+
+export type AppState =
+  | "idle"
+  | "sheet-pick"   // user picks which sheet to use
+  | "mapping"      // transaction column mapping
+  | "dashboard"    // transaction dashboard
+  | "budget";      // budget report view
 
 export interface MonthlySummary {
   month: string;
@@ -39,3 +92,4 @@ export interface AccountSummary {
   total: number;
   count: number;
 }
+

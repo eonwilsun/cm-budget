@@ -1,5 +1,5 @@
-import * as XLSX from "xlsx";
-import type { Transaction, ColumnMapping } from "../types";
+import * as XLSX from "@e965/xlsx";
+import type { Transaction, ColumnMapping, WorkbookMeta } from "../types";
 
 // ---------------------------------------------------------------------------
 // Row-level junk filter
@@ -85,11 +85,19 @@ function parseDateString(raw: unknown): string {
 
 // ---------------------------------------------------------------------------
 // Parse a monetary value from a cell, stripping currency symbols and commas.
+// Supports accounting-style parenthesis negatives: (7,035) → -7035
 // ---------------------------------------------------------------------------
 function parseAmount(raw: unknown): number {
   if (typeof raw === "number") return raw;
   if (typeof raw === "string") {
-    const cleaned = raw.replace(/[£€$,\s]/g, "");
+    const s = raw.trim();
+    // Accounting negative: (7,035) or (£7,035.50)
+    const parenMatch = s.match(/^\(([0-9,.\s£€$]+)\)$/);
+    if (parenMatch) {
+      const n = parseFloat(parenMatch[1].replace(/[,\s£€$]/g, ""));
+      return isNaN(n) ? 0 : -n;
+    }
+    const cleaned = s.replace(/[£€$,\s]/g, "");
     const n = parseFloat(cleaned);
     return isNaN(n) ? 0 : n;
   }
@@ -100,6 +108,50 @@ function parseAmount(raw: unknown): number {
 // Public API
 // ---------------------------------------------------------------------------
 
+/**
+ * Read the workbook from a File and return all sheet names + a raw buffer.
+ * The buffer can be passed to parseTransactionSheet / isBudgetSheet / parseBudgetSheet
+ * without re-reading the file.
+ */
+export function readWorkbook(file: File): Promise<WorkbookMeta> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const buffer = e.target?.result as ArrayBuffer;
+        const data = new Uint8Array(buffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        resolve({ sheetNames: workbook.SheetNames, buffer });
+      } catch {
+        reject(new Error("Failed to read the Excel file. Please ensure it is a valid .xlsx file."));
+      }
+    };
+    reader.onerror = () => reject(new Error("Failed to read the file."));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/**
+ * Parse one sheet from an already-read buffer as a flat list of rows
+ * (used by the transaction column-mapping flow).
+ */
+export function parseTransactionSheet(
+  buffer: ArrayBuffer,
+  sheetName: string
+): { headers: string[]; rows: Record<string, unknown>[] } {
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: "array", cellDates: true });
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet) throw new Error(`Sheet "${sheetName}" not found.`);
+  const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+    raw: false,
+    defval: "",
+  });
+  if (jsonData.length === 0) throw new Error("The selected sheet appears to be empty.");
+  return { headers: Object.keys(jsonData[0]), rows: jsonData };
+}
+
+/** @deprecated Use readWorkbook + parseTransactionSheet instead. */
 export function parseExcelFile(
   file: File
 ): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
@@ -108,7 +160,6 @@ export function parseExcelFile(
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        // cellDates: true – xlsx converts serial dates to JS Date objects
         const workbook = XLSX.read(data, { type: "array", cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
@@ -116,19 +167,15 @@ export function parseExcelFile(
           raw: false,
           defval: "",
         });
-
         if (jsonData.length === 0) {
           reject(new Error("The spreadsheet appears to be empty."));
           return;
         }
-
         const headers = Object.keys(jsonData[0]);
         resolve({ headers, rows: jsonData });
       } catch {
         reject(
-          new Error(
-            "Failed to parse the Excel file. Please ensure it is a valid .xlsx file."
-          )
+          new Error("Failed to parse the Excel file. Please ensure it is a valid .xlsx file.")
         );
       }
     };

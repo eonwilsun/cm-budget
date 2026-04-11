@@ -116,7 +116,7 @@ The following row types are silently skipped (common in UK bank statement export
 | [Next.js 16](https://nextjs.org) | React framework (App Router) |
 | [TypeScript](https://www.typescriptlang.org) | Type safety |
 | [Tailwind CSS 4](https://tailwindcss.com) | Styling |
-| [xlsx (SheetJS)](https://sheetjs.com) | Client-side Excel parsing |
+| [@e965/xlsx](https://www.npmjs.com/package/@e965/xlsx) | Client-side Excel parsing (community fork of SheetJS, no known CVEs) |
 | [Recharts](https://recharts.org) | Charts (line, bar, pie) |
 
 ---
