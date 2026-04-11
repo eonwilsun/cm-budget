@@ -20,6 +20,20 @@ Upload an Excel spreadsheet and instantly see your finances as charts and summar
 
 ---
 
+## 🌐 Live Demo (GitHub Pages)
+
+The app is deployed at:
+**<https://eonwilsun.github.io/cm-budget/>**
+
+Every push to `main` triggers the GitHub Actions workflow (`.github/workflows/pages.yml`) which:
+1. Installs dependencies (`npm ci`)
+2. Builds a static export (`npm run build` → produces `out/`)
+3. Uploads the `out/` folder and deploys it to GitHub Pages
+
+> **Repo → Settings → Pages → Source** must be set to **"GitHub Actions"** for deployments to work.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -27,7 +41,7 @@ Upload an Excel spreadsheet and instantly see your finances as charts and summar
 - Node.js ≥ 18
 - npm ≥ 9
 
-### Install & run
+### Install & run locally
 
 ```bash
 git clone https://github.com/eonwilsun/cm-budget.git
@@ -38,12 +52,15 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Build for production
+### Build the static export
 
 ```bash
 npm run build
-npm start
+# Static files are written to ./out/
 ```
+
+The `out/` directory contains the fully static site that is deployed to GitHub Pages.
+Running `npm start` locally is **not** used for the static export — the `out/` folder is served directly by GitHub Pages.
 
 ---
 
