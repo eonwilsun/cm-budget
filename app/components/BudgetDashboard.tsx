@@ -1,0 +1,147 @@
+"use client";
+
+import React from "react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  PieChart, Pie, Cell, ResponsiveContainer,
+} from "recharts";
+import type { ParsedBudget, BudgetRow } from "../types";
+
+const SECTION_COLORS = [
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#06b6d4", "#ec4899", "#84cc16", "#f97316", "#6366f1",
+];
+
+interface BudgetDashboardProps {
+  budget: ParsedBudget;
+}
+
+function fmt(n: number) {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(n);
+}
+
+function sumValues(rows: BudgetRow[], colKeys: string[]): number {
+  return rows.reduce((acc, r) => {
+    for (const k of colKeys) acc += r.values[k] ?? 0;
+    return acc;
+  }, 0);
+}
+
+export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
+  const monthCols = budget.columns.filter((c) => c.monthIndex !== null);
+  const budgetCol = budget.columns.find((c) => c.isBudget);
+  const monthKeys = monthCols.map((c) => c.key);
+
+  const incomeItems = budget.rows.filter((r) => r.rowType === "item" && r.sectionType === "income");
+  const expendItems = budget.rows.filter((r) => r.rowType === "item" && r.sectionType === "expenditure");
+
+  const totalBudgetIncome = budgetCol ? sumValues(incomeItems, [budgetCol.key]) : 0;
+  const totalBudgetExpend = budgetCol ? sumValues(expendItems, [budgetCol.key]) : 0;
+  const totalActualIncome = sumValues(incomeItems, monthKeys);
+  const totalActualExpend = sumValues(expendItems, monthKeys);
+  const netBudget = totalBudgetIncome - totalBudgetExpend;
+  const netActual = totalActualIncome - totalActualExpend;
+
+  const summaryCards = [
+    { label: "Budget Income",     value: fmt(totalBudgetIncome), color: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-950",     border: "border-blue-200 dark:border-blue-800" },
+    { label: "Budget Expenditure",value: fmt(totalBudgetExpend), color: "text-red-600 dark:text-red-400",      bg: "bg-red-50 dark:bg-red-950",       border: "border-red-200 dark:border-red-800" },
+    { label: "Budget Net",        value: fmt(netBudget),         color: netBudget >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400", bg: netBudget >= 0 ? "bg-emerald-50 dark:bg-emerald-950" : "bg-orange-50 dark:bg-orange-950", border: netBudget >= 0 ? "border-emerald-200 dark:border-emerald-800" : "border-orange-200 dark:border-orange-800" },
+    { label: "Actual Income",     value: fmt(totalActualIncome), color: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-950",     border: "border-blue-200 dark:border-blue-800" },
+    { label: "Actual Expenditure",value: fmt(totalActualExpend), color: "text-red-600 dark:text-red-400",      bg: "bg-red-50 dark:bg-red-950",       border: "border-red-200 dark:border-red-800" },
+    { label: "Actual Net",        value: fmt(netActual),         color: netActual >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400", bg: netActual >= 0 ? "bg-emerald-50 dark:bg-emerald-950" : "bg-orange-50 dark:bg-orange-950", border: netActual >= 0 ? "border-emerald-200 dark:border-emerald-800" : "border-orange-200 dark:border-orange-800" },
+  ];
+
+  // Income vs Expenditure by month
+  const monthlyData = monthCols.map((col) => ({
+    month: col.label,
+    Income: Math.round(sumValues(incomeItems, [col.key])),
+    Expenditure: Math.round(sumValues(expendItems, [col.key])),
+  })).filter((d) => d.Income !== 0 || d.Expenditure !== 0);
+
+  // Spend by section (expenditure sections only)
+  const sectionNames = [...new Set(expendItems.map((r) => r.sectionName))].filter(Boolean);
+  const sectionData = sectionNames.map((sec) => ({
+    name: sec,
+    value: Math.round(sumValues(expendItems.filter((r) => r.sectionName === sec), monthKeys)),
+  })).filter((s) => s.value > 0).sort((a, b) => b.value - a.value);
+
+  // Top 10 items by actual spend
+  const topItems = [...budget.rows]
+    .filter((r) => r.rowType === "item" && r.sectionType === "expenditure")
+    .map((r) => ({ name: r.name || r.code, value: Math.round(sumValues([r], monthKeys)) }))
+    .filter((x) => x.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+
+  return (
+    <div className="space-y-8">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {summaryCards.map((c) => (
+          <div key={c.label} className={`rounded-xl border p-4 ${c.bg} ${c.border}`}>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide leading-tight">{c.label}</p>
+            <p className={`text-lg font-bold mt-1 ${c.color}`}>{c.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Income vs Expenditure by month */}
+      {monthlyData.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Income vs Expenditure by Month</h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v) => fmt(Number(v))} />
+              <Legend />
+              <Bar dataKey="Income" fill="#10b981" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="Expenditure" fill="#ef4444" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Spend by section */}
+        {sectionData.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Spend by Section</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={sectionData} dataKey="value" cx="50%" cy="50%" outerRadius={100}>
+                  {sectionData.map((_, i) => (
+                    <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => fmt(Number(v))} />
+                <Legend formatter={(v) => <span className="text-xs">{v}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Top items */}
+        {topItems.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Top 10 Expenditure Items (Actual)</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={topItems} layout="vertical" margin={{ left: 8, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis type="number" tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(v) => fmt(Number(v))} />
+                <Bar dataKey="value" fill="#3b82f6" radius={[0, 3, 3, 0]}>
+                  {topItems.map((_, i) => (
+                    <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
