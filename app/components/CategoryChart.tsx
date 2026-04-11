@@ -101,14 +101,12 @@ export default function CategoryChart({ transactions }: CategoryChartProps) {
               cy="50%"
               outerRadius={140}
               dataKey="value"
-              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-              labelLine={false}
             >
               {data.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value: number) => formatCurrency(value)} />
+            <Tooltip formatter={(value) => formatCurrency(Number(value))} />
             <Legend />
           </PieChart>
         ) : (
@@ -116,7 +114,7 @@ export default function CategoryChart({ transactions }: CategoryChartProps) {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
             <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(value: number) => formatCurrency(value)} />
+            <Tooltip formatter={(value) => formatCurrency(Number(value))} />
             <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]}>
               {data.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

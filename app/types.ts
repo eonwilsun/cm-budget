@@ -11,7 +11,12 @@ export interface ColumnMapping {
   description: string;
   category: string;
   account: string;
+  /** Single signed amount column. Either this OR (debit + credit) must be provided. */
   amount: string;
+  /** Optional: separate debit column (money going out, treated as positive expense). */
+  debit?: string;
+  /** Optional: separate credit column (money coming in, treated as positive income). */
+  credit?: string;
 }
 
 export type AppState = "idle" | "mapping" | "dashboard";
