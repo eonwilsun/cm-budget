@@ -1,6 +1,3 @@
-"use client";
-
-import React from "react";
 import {
   BarChart,
   Bar,
@@ -100,3 +97,4 @@ export default function AccountChart({ transactions }: AccountChartProps) {
     </div>
   );
 }
+

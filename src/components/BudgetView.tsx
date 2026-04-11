@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import type { ParsedBudget } from "../types";
 import BudgetDashboard from "./BudgetDashboard";
 import BudgetTable, { sectionAnchorId } from "./BudgetTable";
@@ -305,3 +303,4 @@ export default function BudgetView({ budget, fileName, onReset }: BudgetViewProp
     </div>
   );
 }
+

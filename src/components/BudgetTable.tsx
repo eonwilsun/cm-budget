@@ -1,6 +1,4 @@
-"use client";
-
-import React, { forwardRef } from "react";
+import { forwardRef } from "react";
 import type { ParsedBudget, BudgetRow, BudgetColumn } from "../types";
 
 interface BudgetTableProps {
@@ -226,3 +224,4 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
 
 BudgetTable.displayName = "BudgetTable";
 export default BudgetTable;
+

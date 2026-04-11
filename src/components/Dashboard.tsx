@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState } from "react";
+import { useState } from "react";
 import type { Transaction } from "../types";
 import SummaryCards from "./SummaryCards";
 import CategoryChart from "./CategoryChart";
@@ -212,3 +210,4 @@ export default function Dashboard({ transactions, fileName, onReset }: Dashboard
     </div>
   );
 }
+

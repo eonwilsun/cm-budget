@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { AppState, ColumnMapping, Transaction, WorkbookMeta, ParsedBudget } from "./types";
 import { readWorkbook, parseTransactionSheet, detectMapping, mapRows } from "./lib/parseExcel";
 import { isBudgetSheet, parseBudgetSheet } from "./lib/parseBudget";
@@ -10,7 +8,7 @@ import ColumnMapper from "./components/ColumnMapper";
 import Dashboard from "./components/Dashboard";
 import BudgetView from "./components/BudgetView";
 
-export default function Home() {
+export default function App() {
   const [appState, setAppState] = useState<AppState>("idle");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

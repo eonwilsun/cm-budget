@@ -1,6 +1,3 @@
-"use client";
-
-import React from "react";
 import {
   LineChart,
   Line,
@@ -95,3 +92,4 @@ export default function TrendChart({ transactions }: TrendChartProps) {
     </ResponsiveContainer>
   );
 }
+

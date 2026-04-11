@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState } from "react";
+import { useState } from "react";
 import type { ColumnMapping } from "../types";
 
 interface ColumnMapperProps {

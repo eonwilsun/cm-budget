@@ -1,7 +1,3 @@
-"use client";
-
-import React from "react";
-
 interface SheetPickerProps {
   fileName: string;
   sheetNames: string[];
@@ -49,3 +45,4 @@ export default function SheetPicker({ fileName, sheetNames, onSelect, onBack }: 
     </div>
   );
 }
+

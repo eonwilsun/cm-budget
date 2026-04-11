@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 
 interface FileUploadProps {
   onFile: (file: File) => void;
@@ -88,3 +86,4 @@ export default function FileUpload({ onFile }: FileUploadProps) {
     </div>
   );
 }
+

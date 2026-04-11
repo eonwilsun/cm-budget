@@ -1,6 +1,3 @@
-"use client";
-
-import React from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   PieChart, Pie, Cell, ResponsiveContainer,
@@ -145,3 +142,4 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
     </div>
   );
 }
+

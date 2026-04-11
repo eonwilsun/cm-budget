@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   PieChart,
   Pie,
@@ -126,3 +124,4 @@ export default function CategoryChart({ transactions }: CategoryChartProps) {
     </div>
   );
 }
+

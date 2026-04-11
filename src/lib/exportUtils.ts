@@ -122,3 +122,4 @@ function triggerDownload(dataUrl: string, filename: string): void {
   a.click();
   document.body.removeChild(a);
 }
+
