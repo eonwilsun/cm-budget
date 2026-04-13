@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
-import type { AppState, ColumnMapping, Transaction, WorkbookMeta, ParsedBudget } from "./types";
-import { readWorkbook, parseTransactionSheet, detectMapping, mapRows } from "./lib/parseExcel";
+import type { AppState, ColumnMapping, Transaction, WorkbookMeta, ParsedBudget, SectionBalance } from "./types";
+import { readWorkbook, parseTransactionSheet, detectMapping, mapRows, isMultiSectionFormat, parseMultiSectionSheet } from "./lib/parseExcel";
 import { isBudgetSheet, parseBudgetSheet } from "./lib/parseBudget";
 import FileUpload from "./components/FileUpload";
 import SheetPicker from "./components/SheetPicker";
@@ -24,6 +24,7 @@ export default function Home() {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [initialMapping, setInitialMapping] = useState<Partial<ColumnMapping>>({});
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [sectionBalances, setSectionBalances] = useState<SectionBalance[]>([]);
 
   // Budget flow
   const [budgetData, setBudgetData] = useState<ParsedBudget | null>(null);
@@ -41,6 +42,14 @@ export default function Home() {
             setAppState("budget");
             return;
           }
+        }
+        // Multi-section bank export format (N/C: / Name: sections)
+        if (isMultiSectionFormat(wb.buffer, sheetName)) {
+          const { transactions: txns, sectionBalances: balances } = parseMultiSectionSheet(wb.buffer, sheetName);
+          setTransactions(txns);
+          setSectionBalances(balances);
+          setAppState("dashboard");
+          return;
         }
         // Fall through to transaction flow
         const { headers, rows } = parseTransactionSheet(wb.buffer, sheetName);
@@ -111,6 +120,7 @@ export default function Home() {
     setRows([]);
     setInitialMapping({});
     setTransactions([]);
+    setSectionBalances([]);
     setBudgetData(null);
   }, []);
 
@@ -207,6 +217,15 @@ export default function Home() {
                   </div>
                   <p className="text-xs text-gray-400 mt-1">Date as DD/MM/YYYY. Accounting negatives (7,035) supported. Junk rows filtered automatically.</p>
                 </div>
+                <div>
+                  <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">🏦 Multi-section bank export format</p>
+                  <div className="flex flex-wrap gap-2">
+                    {["N/C:", "Name:", "No", "Date", "Details", "Debit", "Credit", "History Balance:"].map((h) => (
+                      <span key={h} className="px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300 text-xs font-mono">{h}</span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Repeated sections each starting with N/C: and Name: metadata rows. Categories and history balances extracted automatically per section.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -257,7 +276,7 @@ export default function Home() {
 
         {/* ── TRANSACTION DASHBOARD ─────────────────────────────────────── */}
         {appState === "dashboard" && (
-          <Dashboard transactions={transactions} fileName={fileName} onReset={handleReset} />
+          <Dashboard transactions={transactions} sectionBalances={sectionBalances} fileName={fileName} onReset={handleReset} />
         )}
 
         {/* ── BUDGET REPORT ─────────────────────────────────────────────── */}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import type { Transaction } from "../types";
+import type { Transaction, SectionBalance } from "../types";
 import SummaryCards from "./SummaryCards";
 import CategoryChart from "./CategoryChart";
 import TrendChart from "./TrendChart";
@@ -9,30 +9,27 @@ import AccountChart from "./AccountChart";
 
 interface DashboardProps {
   transactions: Transaction[];
+  sectionBalances?: SectionBalance[];
   fileName: string;
   onReset: () => void;
 }
-
-interface TabConfig {
-  id: string;
-  label: string;
-  icon: string;
-}
-
-const TABS: TabConfig[] = [
-  { id: "overview", label: "Overview", icon: "📊" },
-  { id: "categories", label: "Categories", icon: "🏷️" },
-  { id: "trend", label: "Monthly Trend", icon: "📈" },
-  { id: "accounts", label: "Accounts", icon: "🏦" },
-  { id: "transactions", label: "Transactions", icon: "📋" },
-];
 
 function formatCurrency(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
-export default function Dashboard({ transactions, fileName, onReset }: DashboardProps) {
+export default function Dashboard({ transactions, sectionBalances = [], fileName, onReset }: DashboardProps) {
   const [activeTab, setActiveTab] = useState("overview");
+
+  const tabs = [
+    { id: "overview", label: "Overview", icon: "📊" },
+    { id: "categories", label: "Categories", icon: "🏷️" },
+    { id: "trend", label: "Monthly Trend", icon: "📈" },
+    { id: "accounts", label: "Accounts", icon: "🏦" },
+    ...(sectionBalances.length > 0 ? [{ id: "sections", label: "Sections", icon: "📂" }] : []),
+    { id: "transactions", label: "Transactions", icon: "📋" },
+  ];
+
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 20;
@@ -74,7 +71,7 @@ export default function Dashboard({ transactions, fileName, onReset }: Dashboard
       {/* Tab navigation */}
       <div className="border-b border-gray-200 dark:border-gray-700">
         <nav className="-mb-px flex gap-1 overflow-x-auto">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -134,6 +131,73 @@ export default function Dashboard({ transactions, fileName, onReset }: Dashboard
               Account Breakdown
             </h3>
             <AccountChart transactions={transactions} />
+          </div>
+        )}
+
+        {activeTab === "sections" && sectionBalances.length > 0 && (
+          <div>
+            <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
+              Section History Balances
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <th className="text-left py-2 px-3 text-gray-500 dark:text-gray-400 font-medium">Code</th>
+                    <th className="text-left py-2 px-3 text-gray-500 dark:text-gray-400 font-medium">Section Name</th>
+                    <th className="text-right py-2 px-3 text-gray-500 dark:text-gray-400 font-medium">History Balance</th>
+                    {sectionBalances.some((s) => s.accountBalance !== undefined) && (
+                      <th className="text-right py-2 px-3 text-gray-500 dark:text-gray-400 font-medium">Account Balance</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sectionBalances.map((s, i) => (
+                    <tr key={i} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <td className="py-2 px-3 text-gray-500 dark:text-gray-400 font-mono">{s.sectionCode}</td>
+                      <td className="py-2 px-3 text-gray-800 dark:text-gray-200">{s.sectionName}</td>
+                      <td className={`py-2 px-3 text-right font-medium whitespace-nowrap ${
+                        s.historyBalance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                      }`}>
+                        {formatCurrency(s.historyBalance)}
+                      </td>
+                      {sectionBalances.some((sec) => sec.accountBalance !== undefined) && (
+                        <td className={`py-2 px-3 text-right font-medium whitespace-nowrap ${
+                          (s.accountBalance ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                        }`}>
+                          {s.accountBalance !== undefined ? formatCurrency(s.accountBalance) : "—"}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 dark:border-gray-700">
+                    <td colSpan={2} className="py-2 px-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Total</td>
+                    <td className={`py-2 px-3 text-right font-bold whitespace-nowrap ${
+                      sectionBalances.reduce((s, r) => s + r.historyBalance, 0) >= 0
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-red-600 dark:text-red-400"
+                    }`}>
+                      {formatCurrency(sectionBalances.reduce((s, r) => s + r.historyBalance, 0))}
+                    </td>
+                    {sectionBalances.some((s) => s.accountBalance !== undefined) && (() => {
+                      const hasAll = sectionBalances.every((s) => s.accountBalance !== undefined);
+                      const total = sectionBalances.reduce((sum, s) => sum + (s.accountBalance ?? 0), 0);
+                      return (
+                        <td className={`py-2 px-3 text-right font-bold whitespace-nowrap ${
+                          hasAll
+                            ? total >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                            : "text-gray-600 dark:text-gray-400"
+                        }`}>
+                          {hasAll ? formatCurrency(total) : "—"}
+                        </td>
+                      );
+                    })()}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
         )}
 

@@ -93,3 +93,11 @@ export interface AccountSummary {
   count: number;
 }
 
+/** Balance information extracted from a multi-section bank export. */
+export interface SectionBalance {
+  sectionCode: string;
+  sectionName: string;
+  historyBalance: number;
+  accountBalance?: number;
+}
+
