@@ -101,3 +101,41 @@ export interface SectionBalance {
   accountBalance?: number;
 }
 
+// ---------------------------------------------------------------------------
+// Financial Reports types
+// ---------------------------------------------------------------------------
+
+export interface ExpenditureItem {
+  date: string;
+  description: string;
+  category: string;
+  amount: number;
+  account: string;
+}
+
+export interface DebtorItem {
+  name: string;
+  reference: string;
+  amount: number;
+  date: string;
+  status: string;
+  notes: string;
+}
+
+export interface ExpenditureReportData {
+  items: ExpenditureItem[];
+  total: number;
+  categories: string[];
+}
+
+export interface DebtorsReportData {
+  items: DebtorItem[];
+  total: number;
+  outstandingCount: number;
+}
+
+export interface ReportData {
+  expenditure: ExpenditureReportData;
+  debtors: DebtorsReportData;
+  generatedAt: string;
+}
