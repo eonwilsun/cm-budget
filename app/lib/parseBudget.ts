@@ -121,17 +121,25 @@ export function isBudgetSheet(buffer: ArrayBuffer, sheetName: string): boolean {
 
     let monthCount = 0;
     let hasSectionKeyword = false;
+    let hasBudgetHeader = false;
+    let hasNameHeader = false;
     for (let i = 0; i < Math.min(raw.length, 40); i++) {
       const row = (raw[i] as unknown[]) ?? [];
       for (const cell of row) {
         if (monthFromValue(cell) !== null) monthCount++;
-        const s = String(cell ?? "").toLowerCase();
+        const s = String(cell ?? "").toLowerCase().trim();
         if ([...INCOME_KW, ...EXPEND_KW].some((k) => s.includes(k))) {
           hasSectionKeyword = true;
         }
+        if (/^budget/.test(s) || s === "annual" || s === "full year") {
+          hasBudgetHeader = true;
+        }
+        if (["code", "name", "description", "details", "item", "narrative", "heading", "notes"].includes(s)) {
+          hasNameHeader = true;
+        }
       }
     }
-    return monthCount >= 3 && hasSectionKeyword;
+    return monthCount >= 3 && (hasBudgetHeader || hasSectionKeyword || hasNameHeader);
   } catch {
     return false;
   }

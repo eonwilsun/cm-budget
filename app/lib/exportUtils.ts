@@ -7,7 +7,8 @@
  */
 
 /** Capture an element as a PNG and trigger a browser download. */
-export async function downloadAsPNG(element: HTMLElement, filename: string): Promise<void> {
+export async function downloadAsPNG(element: HTMLElement | null, filename: string): Promise<void> {
+  if (!element) return;
   const { default: html2canvas } = await import("html2canvas");
   const canvas = await html2canvas(element, {
     scale: 2,
@@ -23,7 +24,7 @@ export async function downloadAsPNG(element: HTMLElement, filename: string): Pro
  * Each element becomes one or more A4 pages (portrait).
  */
 export async function downloadAsPDF(
-  sections: { element: HTMLElement; title?: string }[],
+  sections: { element: HTMLElement | null; title?: string }[],
   filename: string,
   documentTitle?: string
 ): Promise<void> {
@@ -46,6 +47,7 @@ export async function downloadAsPDF(
   }
 
   for (const { element, title } of sections) {
+    if (!element) continue;
     const canvas = await html2canvas(element, {
       scale: 2,
       useCORS: true,
