@@ -152,7 +152,7 @@ export default function ReportsPage() {
   };
 
   const downloadPDF = async (
-    ref: React.RefObject<HTMLDivElement>,
+    ref: React.RefObject<HTMLDivElement | null>,
     fileName: string
   ) => {
     if (!ref.current) return;
