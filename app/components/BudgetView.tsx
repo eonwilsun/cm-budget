@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import type { ParsedBudget } from "../types";
 import BudgetDashboard from "./BudgetDashboard";
 import BudgetTable, { sectionAnchorId } from "./BudgetTable";
@@ -30,8 +30,118 @@ function allSubsectionNames(budget: ParsedBudget): Set<string> {
   );
 }
 
-export default function BudgetView({ budget, fileName, onReset, isSavedBudget = false, onBudgetChange, onSaveAsSavedBudget }: BudgetViewProps) {
+function headingKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
   const sharedBudget = getSharedBudgetConfig();
+  const budgetCol = budget.columns.find((c) => c.isBudget);
+  if (!budgetCol || sharedBudget.breakdown.length === 0) {
+    return budget;
+  }
+
+  const amountByHeading = new Map<string, number>();
+  for (const item of sharedBudget.breakdown) {
+    amountByHeading.set(headingKey(item.heading), item.amount);
+  }
+
+  const rowsWithItemBudgets = budget.rows.map((row) => {
+    if (row.rowType !== "item") {
+      return row;
+    }
+
+    const mappedAmount = amountByHeading.get(headingKey(row.name));
+    if (mappedAmount === undefined) {
+      return row;
+    }
+
+    return {
+      ...row,
+      values: {
+        ...row.values,
+        [budgetCol.key]: mappedAmount,
+      },
+    };
+  });
+
+  const itemRows = rowsWithItemBudgets.filter((row) => row.rowType === "item");
+  const sumBudget = (predicate: (row: typeof itemRows[number]) => boolean): number => {
+    return itemRows.reduce((sum, row) => {
+      if (!predicate(row)) return sum;
+      return sum + (row.values[budgetCol.key] ?? 0);
+    }, 0);
+  };
+
+  const incomeBudgetTotal = sumBudget((row) => row.sectionType === "income");
+  const expenditureBudgetTotal = sumBudget((row) => row.sectionType === "expenditure");
+
+  const normalizedRows = rowsWithItemBudgets.map((row) => {
+    if (row.rowType === "item") {
+      return row;
+    }
+
+    if (row.rowType === "subsection") {
+      const subtotal = sumBudget((item) => item.sectionName === row.sectionName && item.subsectionName === row.name);
+      return {
+        ...row,
+        values: {
+          ...row.values,
+          [budgetCol.key]: subtotal,
+        },
+      };
+    }
+
+    if (row.rowType === "section") {
+      const sectionName = row.sectionName || row.name;
+      const sectionTotal = sumBudget((item) => item.sectionName === sectionName);
+      return {
+        ...row,
+        values: {
+          ...row.values,
+          [budgetCol.key]: sectionTotal,
+        },
+      };
+    }
+
+    if (row.rowType === "total") {
+      let total = 0;
+      if (row.sectionType === "income") {
+        total = incomeBudgetTotal;
+      } else if (row.sectionType === "expenditure") {
+        total = expenditureBudgetTotal;
+      }
+
+      return {
+        ...row,
+        values: {
+          ...row.values,
+          [budgetCol.key]: total,
+        },
+      };
+    }
+
+    if (row.rowType === "net") {
+      return {
+        ...row,
+        values: {
+          ...row.values,
+          [budgetCol.key]: incomeBudgetTotal - expenditureBudgetTotal,
+        },
+      };
+    }
+
+    return row;
+  });
+
+  return {
+    ...budget,
+    rows: normalizedRows,
+  };
+}
+
+export default function BudgetView({ budget, fileName, onReset, isSavedBudget = false, onBudgetChange, onSaveAsSavedBudget }: BudgetViewProps) {
+  const budgetWithSharedBreakdown = useMemo(() => applySharedBreakdownToBudget(budget), [budget]);
   const [activeTab, setActiveTab] = useState<Tab>("report");
   const [editMode, setEditMode] = useState(false);
 
@@ -65,9 +175,9 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   }, []);
 
   const expandAll = useCallback(() => {
-    setExpandedSections(allSectionNames(budget));
-    setExpandedSubsections(allSubsectionNames(budget));
-  }, [budget.rows]);
+    setExpandedSections(allSectionNames(budgetWithSharedBreakdown));
+    setExpandedSubsections(allSubsectionNames(budgetWithSharedBreakdown));
+  }, [budgetWithSharedBreakdown]);
 
   const collapseAll = useCallback(() => {
     setExpandedSections(new Set());
@@ -83,12 +193,12 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   const goToDashboard = useCallback(() => {
     setActiveTab("dashboard");
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [scrollTo]);
+  }, []);
 
   const goToReport = useCallback(() => {
     setActiveTab("report");
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [scrollTo]);
+  }, []);
 
   const goToSection = useCallback(
     (sectionName: string) => {
@@ -105,10 +215,10 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   );
 
   // Sections with their types for nav buttons
-  const sectionRows = budget.rows.filter((r) => r.rowType === "section");
+  const sectionRows = budgetWithSharedBreakdown.rows.filter((r) => r.rowType === "section");
   const incomeSections = sectionRows.filter((r) => r.sectionType === "income");
   const expendSections = sectionRows.filter((r) => r.sectionType === "expenditure");
-  const totalRows = budget.rows.filter((r) => r.rowType === "total" || r.rowType === "net");
+  const totalRows = budgetWithSharedBreakdown.rows.filter((r) => r.rowType === "total" || r.rowType === "net");
 
   // ── Export helpers ────────────────────────────────────────────────────────
   async function handleExport(action: () => Promise<void>, key: string) {
@@ -228,7 +338,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
                 Budget Report{budget.year ? ` ${budget.year}` : ""}
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                {fileName} · {budget.sheetName} · {budget.rows.filter((r) => r.rowType === "item").length} line items
+                {fileName} · {budget.sheetName} · {budgetWithSharedBreakdown.rows.filter((r) => r.rowType === "item").length} line items
               </p>
               {isSavedBudget && onBudgetChange && (
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
@@ -349,7 +459,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
       {activeTab === "dashboard" && (
         <section id="budget-dashboard-section">
           <div ref={dashboardRef}>
-            <BudgetDashboard budget={budget} />
+            <BudgetDashboard budget={budgetWithSharedBreakdown} />
           </div>
         </section>
       )}
@@ -357,31 +467,6 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
       {/* ── REPORT TABLE tab ──────────────────────────────────────────────── */}
       {activeTab === "report" && (
         <section id="budget-report-section">
-          {sharedBudget.breakdown.length > 0 && (
-            <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/40">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
-                  Shared Budget Breakdown ({sharedBudget.year})
-                </h3>
-                <span className="text-sm font-bold text-blue-800 dark:text-blue-300">
-                  {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(sharedBudget.totalBudget)}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                {sharedBudget.breakdown.map((item) => (
-                  <div key={item.heading} className="flex items-center justify-between rounded bg-white/80 px-2 py-1 text-xs dark:bg-blue-950/50">
-                    <span className="truncate text-blue-900 dark:text-blue-200">{item.heading}</span>
-                    <span className="ml-2 font-medium text-blue-800 dark:text-blue-300">
-                      {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(item.amount)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-[11px] text-blue-700 dark:text-blue-400">
-                Shared values are loaded from app/config/sharedBudget.json so everyone sees the same annual budget and heading breakdown.
-              </p>
-            </div>
-          )}
           {/* Collapse hint */}
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
             Click a section or subsection header row to expand / collapse it. Use <strong>Expand All / Collapse All</strong> in the nav bar above.
@@ -393,7 +478,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
           )}
           <div ref={reportRef}>
             <BudgetTable
-              budget={budget}
+              budget={budgetWithSharedBreakdown}
               expandedSections={expandedSections}
               expandedSubsections={expandedSubsections}
               onToggleSection={toggleSection}
