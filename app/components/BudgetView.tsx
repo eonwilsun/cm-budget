@@ -14,12 +14,24 @@ interface BudgetViewProps {
 
 type Tab = "dashboard" | "report";
 
+function allSectionNames(budget: ParsedBudget): Set<string> {
+  return new Set(budget.rows.filter((r) => r.rowType === "section").map((r) => r.sectionName || r.name));
+}
+
+function allSubsectionNames(budget: ParsedBudget): Set<string> {
+  return new Set(
+    budget.rows
+      .filter((r) => r.rowType === "subsection")
+      .map((r) => `${r.sectionName}::${r.name}`)
+  );
+}
+
 export default function BudgetView({ budget, fileName, onReset }: BudgetViewProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [activeTab, setActiveTab] = useState<Tab>("report");
 
   // Collapse state — all sections/subsections collapsed by default
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-  const [expandedSubsections, setExpandedSubsections] = useState<Set<string>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => allSectionNames(budget));
+  const [expandedSubsections, setExpandedSubsections] = useState<Set<string>>(() => allSubsectionNames(budget));
 
   // Download state
   const [exporting, setExporting] = useState<string | null>(null);
@@ -47,16 +59,8 @@ export default function BudgetView({ budget, fileName, onReset }: BudgetViewProp
   }, []);
 
   const expandAll = useCallback(() => {
-    setExpandedSections(
-      new Set(budget.rows.filter((r) => r.rowType === "section").map((r) => r.sectionName || r.name))
-    );
-    setExpandedSubsections(
-      new Set(
-        budget.rows
-          .filter((r) => r.rowType === "subsection")
-          .map((r) => `${r.sectionName}::${r.name}`)
-      )
-    );
+    setExpandedSections(allSectionNames(budget));
+    setExpandedSubsections(allSubsectionNames(budget));
   }, [budget.rows]);
 
   const collapseAll = useCallback(() => {

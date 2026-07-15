@@ -1,0 +1,226 @@
+import type { BudgetColumn, BudgetRow, ParsedBudget, SectionType, Transaction } from "../types";
+import { parseAmount, parseDateString } from "./parseExcel";
+
+type NominalActivityEntry = {
+  code: string;
+  name: string;
+  date: string;
+  amount: number;
+};
+
+function classifySectionType(code: string): SectionType {
+  const numericCode = parseInt(code.replace(/\D/g, ""), 10);
+  if (!Number.isFinite(numericCode)) return "unknown";
+  if (numericCode >= 4000 && numericCode < 5000) return "income";
+  if (numericCode >= 5000) return "expenditure";
+  return "unknown";
+}
+
+function monthLabel(date: Date): string {
+  return date.toLocaleString("default", { month: "short" });
+}
+
+function buildColumns(months: Date[], year: number | null): BudgetColumn[] {
+  const columns: BudgetColumn[] = [
+    { key: "col_code", label: "Code", monthIndex: null, isBudget: false, isTotal: false, colIndex: 0 },
+    { key: "col_name", label: "Name", monthIndex: null, isBudget: false, isTotal: false, colIndex: 1 },
+    { key: "col_budget", label: year ? `Budget ${year}` : "Budget", monthIndex: null, isBudget: true, isTotal: false, colIndex: 2 },
+  ];
+
+  months.forEach((date, index) => {
+    columns.push({
+      key: `col_month_${index}`,
+      label: monthLabel(date),
+      monthIndex: date.getMonth(),
+      isBudget: false,
+      isTotal: false,
+      colIndex: 3 + index,
+    });
+  });
+
+  columns.push({
+    key: "col_total",
+    label: "Total",
+    monthIndex: null,
+    isBudget: false,
+    isTotal: true,
+    colIndex: 3 + months.length,
+  });
+
+  return columns;
+}
+
+function toNominalEntries(transactions: Transaction[]): NominalActivityEntry[] {
+  return transactions
+    .filter((transaction) => transaction.account && transaction.category && transaction.date)
+    .map((transaction) => ({
+      code: transaction.account,
+      name: transaction.category,
+      date: transaction.date,
+      amount: Math.abs(transaction.amount),
+    }))
+    .filter((entry) => entry.amount > 0);
+}
+
+export function buildBudgetFromNominalTransactions(
+  transactions: Transaction[],
+  sheetName: string
+): ParsedBudget {
+  const entries = toNominalEntries(transactions);
+  const monthDates = Array.from(
+    new Map(
+      entries.map((entry) => {
+        const date = new Date(entry.date);
+        const key = `${date.getFullYear()}-${date.getMonth()}`;
+        return [key, new Date(date.getFullYear(), date.getMonth(), 1)] as const;
+      })
+    ).values()
+  ).sort((a, b) => a.getTime() - b.getTime());
+
+  const year = monthDates[0]?.getFullYear() ?? null;
+  const columns = buildColumns(monthDates, year);
+  const budgetRows: BudgetRow[] = [];
+  const itemsByKey = new Map<string, BudgetRow>();
+  const presentSections = new Set<SectionType>();
+
+  for (const sectionType of ["income", "expenditure"] as const) {
+    const hasEntries = entries.some((entry) => classifySectionType(entry.code) === sectionType);
+    if (!hasEntries) continue;
+    presentSections.add(sectionType);
+    budgetRows.push({
+      code: "",
+      name: sectionType === "income" ? "INCOME" : "EXPENDITURE",
+      notes: "",
+      values: Object.fromEntries(columns.filter((column) => column.isBudget || column.isTotal || column.monthIndex !== null).map((column) => [column.key, null])),
+      rowType: "section",
+      sectionName: sectionType === "income" ? "INCOME" : "EXPENDITURE",
+      sectionType,
+      subsectionName: "",
+      indent: 0,
+    });
+
+    entries
+      .filter((entry) => classifySectionType(entry.code) === sectionType)
+      .sort((a, b) => a.code.localeCompare(b.code) || a.name.localeCompare(b.name))
+      .forEach((entry) => {
+        const rowKey = `${sectionType}::${entry.code}::${entry.name}`;
+        let row = itemsByKey.get(rowKey);
+        if (!row) {
+          row = {
+            code: entry.code,
+            name: entry.name,
+            notes: "",
+            values: Object.fromEntries(columns.filter((column) => column.isBudget || column.isTotal || column.monthIndex !== null).map((column) => [column.key, null])),
+            rowType: "item",
+            sectionName: sectionType === "income" ? "INCOME" : "EXPENDITURE",
+            sectionType,
+            subsectionName: "",
+            indent: 0,
+          };
+          itemsByKey.set(rowKey, row);
+          budgetRows.push(row);
+        }
+
+        const entryDate = new Date(entry.date);
+        const monthColumn = columns.find(
+          (column) => column.monthIndex === entryDate.getMonth() && !column.isBudget && !column.isTotal
+        );
+        if (monthColumn) {
+          row.values[monthColumn.key] = (row.values[monthColumn.key] ?? 0) + entry.amount;
+        }
+        row.values.col_total = (row.values.col_total ?? 0) + entry.amount;
+      });
+  }
+
+  if (presentSections.size === 0) {
+    budgetRows.push({
+      code: "",
+      name: "EXPENDITURE",
+      notes: "",
+      values: Object.fromEntries(columns.filter((column) => column.isBudget || column.isTotal || column.monthIndex !== null).map((column) => [column.key, null])),
+      rowType: "section",
+      sectionName: "EXPENDITURE",
+      sectionType: "expenditure",
+      subsectionName: "",
+      indent: 0,
+    });
+  }
+
+  return {
+    year,
+    columns,
+    rows: budgetRows,
+    sheetName,
+  };
+}
+
+export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+  const pdf = await loadingTask.promise;
+
+  const entries: NominalActivityEntry[] = [];
+  let currentCode = "";
+  let currentName = "";
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    const lines = new Map<number, string[]>();
+
+    textContent.items.forEach((item: any) => {
+      const y = item.transform?.[5] ? Math.round(item.transform[5]) : 0;
+      const line = (lines.get(y) ?? []).concat(item.str);
+      lines.set(y, line);
+    });
+
+    const pageLines = Array.from(lines.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([, items]) => items.join(" ").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+
+    for (const line of pageLines) {
+      const metadataMatch = line.match(/^n\/c\s*:\s*(\d+)\s+name\s*:\s*(.*?)\s+account balance\s*:/i);
+      if (metadataMatch) {
+        currentCode = metadataMatch[1].trim();
+        currentName = metadataMatch[2].trim();
+        continue;
+      }
+
+      if (/^(date|time|page|no\s+type|totals?:|history balance:|account balance:)/i.test(line)) {
+        continue;
+      }
+
+      const txnMatch = line.match(/^\s*\d+\s+\S+\s+(\d{2}\/\d{2}\/\d{4})\s+\S+\s+\S+\s+(.+?)\s+\d+\s+\S+\s+([0-9,]+(?:\.\d{2})?)\s+([0-9,]+(?:\.\d{2})?|-)\s+([0-9,]+(?:\.\d{2})?|-)/i);
+      if (!txnMatch || !currentCode || !currentName) {
+        continue;
+      }
+
+      const [, rawDate, , valueRaw, debitRaw, creditRaw] = txnMatch;
+      const date = parseDateString(rawDate);
+      const debit = debitRaw === "-" ? 0 : parseAmount(debitRaw);
+      const credit = creditRaw === "-" ? 0 : parseAmount(creditRaw);
+      const value = parseAmount(valueRaw);
+      const amount = Math.abs(credit || debit || value);
+
+      if (!date || amount === 0) continue;
+      entries.push({
+        code: currentCode,
+        name: currentName,
+        date,
+        amount,
+      });
+    }
+  }
+
+  const transactions: Transaction[] = entries.map((entry) => ({
+    date: entry.date,
+    description: entry.name,
+    category: entry.name,
+    account: entry.code,
+    amount: entry.amount,
+  }));
+
+  return buildBudgetFromNominalTransactions(transactions, file.name.replace(/\.pdf$/i, ""));
+}

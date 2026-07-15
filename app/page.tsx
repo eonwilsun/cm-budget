@@ -4,6 +4,7 @@ import React, { useState, useCallback } from "react";
 import type { AppState, Transaction, WorkbookMeta, ParsedBudget, SectionBalance } from "./types";
 import { readWorkbook, parseTransactionSheet, detectMapping, mapRows, isMultiSectionFormat, parseMultiSectionSheet } from "./lib/parseExcel";
 import { isBudgetSheet, parseBudgetSheet } from "./lib/parseBudget";
+import { buildBudgetFromNominalTransactions, parseNominalActivityPdf } from "./lib/nominalActivity";
 import FileUpload from "./components/FileUpload";
 import SheetPicker from "./components/SheetPicker";
 import Dashboard from "./components/Dashboard";
@@ -47,7 +48,8 @@ export default function Home() {
           const { transactions: txns, sectionBalances: balances } = parseMultiSectionSheet(wb.buffer, sheetName);
           setTransactions(txns);
           setSectionBalances(balances);
-          setAppState("dashboard");
+          setBudgetData(buildBudgetFromNominalTransactions(txns, sheetName));
+          setAppState("budget");
           return;
         }
 
@@ -76,6 +78,14 @@ export default function Home() {
     setError(null);
     setFileName(file.name);
     try {
+      if (file.name.toLowerCase().endsWith(".pdf")) {
+        const parsed = await parseNominalActivityPdf(file);
+        setBudgetData(parsed);
+        setAppState("budget");
+        setLoading(false);
+        return;
+      }
+
       const wb = await readWorkbook(file);
       setWorkbook(wb);
 
