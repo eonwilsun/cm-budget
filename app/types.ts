@@ -70,7 +70,6 @@ export interface ParsedBudget {
 export type AppState =
   | "idle"
   | "sheet-pick"   // user picks which sheet to use
-  | "mapping"      // transaction column mapping
   | "dashboard"    // transaction dashboard
   | "budget";      // budget report view
 
@@ -106,6 +105,7 @@ export interface SectionBalance {
 // ---------------------------------------------------------------------------
 
 export interface ExpenditureItem {
+  code: string;
   date: string;
   description: string;
   category: string;

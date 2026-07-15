@@ -60,20 +60,36 @@ export default function ReportsPage() {
     const pdf = await loadingTask.promise;
 
     const rows: Record<string, unknown>[] = [];
+    let sectionCode = "";
+    let sectionName = "";
+
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber);
       const textContent = await page.getTextContent();
       const pageLines = extractPdfTextLines(textContent);
 
       for (const line of pageLines) {
-        const lower = line.toLowerCase();
-        if (/^\s*(page|date|transaction|totals?|history balance|account balance|opening balance|closing balance|n\/c|ref|statement|name|nominal activity|car|bank|page:)/i.test(line)) {
+        const normalizedLine = line.trim();
+        const ncodeMatch = normalizedLine.match(/^n\/c\s*[:\s]+(.+)$/i);
+        if (ncodeMatch) {
+          sectionCode = ncodeMatch[1].trim();
           continue;
         }
-        if (!/[\d]/.test(line)) {
+        const nameMatch = normalizedLine.match(/^name\s*[:\s]+(.+)$/i);
+        if (nameMatch) {
+          sectionName = nameMatch[1].trim();
           continue;
         }
-        rows.push({ rawText: line });
+
+        const lower = normalizedLine.toLowerCase();
+        if (/^\s*(page|date|transaction|totals?|history balance|account balance|opening balance|closing balance|ref|statement|nominal activity|car|bank|page:)/i.test(normalizedLine)) {
+          continue;
+        }
+        if (!/[\d]/.test(normalizedLine)) {
+          continue;
+        }
+
+        rows.push({ rawText: normalizedLine, sectionCode, sectionName });
       }
     }
     return rows;
@@ -144,15 +160,23 @@ export default function ReportsPage() {
         const amount = normalizeRowAmount(row);
         if (amount === 0) return null;
 
-        const description = normalizeRowString(row, ["description", "details", "narrative", "memo", "particulars", "text", "transaction"]);
-        const category = normalizeRowString(row, ["category", "type", "group", "nominal", "account", "department"], "Other");
-        const accountName = normalizeRowString(row, ["account", "bank", "card", "ledger", "nominal"]);
+        const sectionCode = typeof row.sectionCode === "string" ? row.sectionCode : "";
+        const sectionName = typeof row.sectionName === "string" ? row.sectionName : "";
+        const code = sectionCode || normalizeRowString(row, ["n/c", "code", "account number", "ref", "id", "nominal"], "");
+        const description = normalizeRowString(row, ["description", "details", "narrative", "memo", "particulars", "text", "transaction"], "");
+        const accountName = normalizeRowString(row, ["account", "bank", "card", "ledger", "nominal"], "");
         const bankInterestMatch = /bank interest|interest/i.test(`${description} ${accountName}`);
 
+        const defaultCategory = sectionName || "Other";
+        const category = bankInterestMatch
+          ? "Bank Interest"
+          : normalizeRowString(row, ["category", "type", "group", "nominal", "account", "department"], defaultCategory);
+
         return {
+          code,
           date: normalizeRowDate(row),
           description,
-          category: bankInterestMatch ? "Bank Interest" : category,
+          category,
           amount,
           account: accountName,
         };
