@@ -82,12 +82,12 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
 
   const goToDashboard = useCallback(() => {
     setActiveTab("dashboard");
-    setTimeout(() => scrollTo("budget-dashboard-section"), 50);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [scrollTo]);
 
   const goToReport = useCallback(() => {
     setActiveTab("report");
-    setTimeout(() => scrollTo("budget-report-section"), 50);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [scrollTo]);
 
   const goToSection = useCallback(
@@ -332,7 +332,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
           {(["dashboard", "report"] as Tab[]).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={tab === "dashboard" ? goToDashboard : goToReport}
               className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors capitalize ${
                 activeTab === tab
                   ? "border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400"

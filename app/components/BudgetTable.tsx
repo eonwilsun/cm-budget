@@ -12,6 +12,7 @@ interface BudgetTableProps {
   editable?: boolean;
   onRowTextChange?: (rowIndex: number, field: "code" | "name" | "notes", value: string) => void;
   onRowValueChange?: (rowIndex: number, columnKey: string, value: number | null) => void;
+  stickyTop?: string;
 }
 
 const SECTION_BG: Record<string, string> = {
@@ -43,7 +44,7 @@ export function sectionAnchorId(name: string) {
 }
 
 const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
-  ({ budget, expandedSections, expandedSubsections, onToggleSection, onToggleSubsection, editable = false, onRowTextChange, onRowValueChange }, ref) => {
+  ({ budget, expandedSections, expandedSubsections, onToggleSection, onToggleSubsection, editable = false, onRowTextChange, onRowValueChange, stickyTop = "12rem" }, ref) => {
     const valueCols: BudgetColumn[] = budget.columns.filter(
       (c) => c.isBudget || c.monthIndex !== null || c.isTotal
     );
@@ -65,7 +66,7 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
       <div ref={ref} className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
         <table className="min-w-full text-xs border-collapse" style={{ minWidth: `${codeW + nameW + valueCols.length * 90}px` }}>
           {/* ── HEADER ───────────────────────────────────────────────────── */}
-          <thead className="sticky top-0 z-20">
+          <thead className="sticky z-20" style={{ top: stickyTop }}>
             <tr className="bg-gray-800 dark:bg-gray-900 text-white">
               {/* Sticky Code column */}
               <th

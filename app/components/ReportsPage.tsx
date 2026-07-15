@@ -21,9 +21,11 @@ export default function ReportsPage() {
   const [appState, setAppState] = useState<"input" | "display">("input");
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [appendCashLoading, setAppendCashLoading] = useState(false);
   const cashAtBankRef = useRef<HTMLDivElement>(null);
   const expenditureRef = useRef<HTMLDivElement>(null);
   const debtorsRef = useRef<HTMLDivElement>(null);
+  const appendCashFileInputRef = useRef<HTMLInputElement>(null);
 
   const getRowValue = (row: Record<string, unknown>, keys: string[]): unknown => {
     const lowerKeys = Object.keys(row).map((k) => k.toLowerCase());
@@ -137,6 +139,18 @@ export default function ReportsPage() {
     const fileName = file.name.toLowerCase();
     if (fileName.endsWith(".pdf")) {
       return parsePdfRows(file);
+    }
+
+    const workbook = await readWorkbook(file);
+    const sheetName = workbook.sheetNames[0];
+    const { rows } = parseTransactionSheet(workbook.buffer, sheetName);
+    return rows;
+  };
+
+  const parseCashAtBankRowsFromFile = async (file: File): Promise<Record<string, unknown>[]> => {
+    const fileName = file.name.toLowerCase();
+    if (fileName.endsWith(".pdf")) {
+      return parseCashAtBankSummaryRows(file);
     }
 
     const workbook = await readWorkbook(file);
@@ -342,6 +356,44 @@ export default function ReportsPage() {
     await processDocuments({ debtorSource, cashAtBankSummary, dayBooksReceipts, nomactx, pnl });
   };
 
+  const handleAppendCashAtBankUpload = async (file: File) => {
+    if (!reportData) return;
+
+    const lowerName = file.name.toLowerCase();
+    if (!lowerName.endsWith(".xlsx") && !lowerName.endsWith(".xls") && !lowerName.endsWith(".pdf")) {
+      alert("Please upload an Excel or PDF document.");
+      return;
+    }
+
+    setAppendCashLoading(true);
+    try {
+      const rows = await parseCashAtBankRowsFromFile(file);
+      const newItems = buildCashAtBankItems(rows);
+      if (newItems.length === 0) {
+        alert("No cash-at-bank rows were found in that document.");
+        return;
+      }
+
+      setReportData((prev) => {
+        if (!prev) return prev;
+        const combinedItems = [...prev.cashAtBank.items, ...newItems];
+        const combinedTotal = combinedItems.reduce((sum, item) => sum + item.balance, 0);
+        return {
+          ...prev,
+          cashAtBank: {
+            items: combinedItems,
+            total: combinedTotal,
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Error appending cash-at-bank document:", error);
+      alert("Could not append that cash-at-bank document. Please check the file format.");
+    } finally {
+      setAppendCashLoading(false);
+    }
+  };
+
   const downloadPDF = async (
     ref: React.RefObject<HTMLDivElement | null>,
     fileName: string
@@ -505,6 +557,32 @@ export default function ReportsPage() {
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Upload another cash-at-bank document to append its rows to this report.
+                </p>
+                <input
+                  ref={appendCashFileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.pdf"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const selectedFile = e.target.files?.[0];
+                    if (selectedFile) {
+                      await handleAppendCashAtBankUpload(selectedFile);
+                    }
+                    e.currentTarget.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={appendCashLoading}
+                  onClick={() => appendCashFileInputRef.current?.click()}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium"
+                >
+                  {appendCashLoading ? "Appending..." : "Upload Cash at Bank Doc"}
+                </button>
               </div>
             </div>
           </div>

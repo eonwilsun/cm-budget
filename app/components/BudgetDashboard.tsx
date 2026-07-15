@@ -53,7 +53,8 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const totalBudgetExpend = budgetCol ? sumValues(expendItems, [budgetCol.key]) : 0;
   const totalActualIncome = sumValues(incomeItems, monthKeys);
   const totalActualExpend = sumValues(expendItems, monthKeys);
-  const budgetTotalForCards = sharedBudget.totalBudget || totalBudgetAll;
+  const sharedBreakdownTotal = sharedBudget.breakdown.reduce((sum, item) => sum + item.amount, 0);
+  const budgetTotalForCards = sharedBudget.totalBudget !== 0 ? sharedBudget.totalBudget : sharedBreakdownTotal;
   const netBudget = budgetTotalForCards - totalActualExpend;
   const netActual = totalActualIncome - totalActualExpend;
 
@@ -133,9 +134,9 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {summaryCards.map((c) => (
-          <div key={c.label} className={`rounded-xl border p-4 ${c.bg} ${c.border}`}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide leading-tight">{c.label}</p>
-            <p className={`text-lg font-bold mt-1 ${c.color}`}>{c.value}</p>
+          <div key={c.label} className={`rounded-xl border p-4 min-h-[128px] flex flex-col ${c.bg} ${c.border}`}>
+            <p className="min-h-[2.4rem] text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide leading-tight">{c.label}</p>
+            <p className={`text-4xl font-bold leading-none mt-auto ${c.color}`}>{c.value}</p>
           </div>
         ))}
       </div>
