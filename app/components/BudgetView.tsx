@@ -10,7 +10,9 @@ interface BudgetViewProps {
   budget: ParsedBudget;
   fileName: string;
   onReset: () => void;
+  isSavedBudget?: boolean;
   onBudgetChange?: (budget: ParsedBudget) => void;
+  onSaveAsSavedBudget?: (budget: ParsedBudget) => void;
 }
 
 type Tab = "dashboard" | "report";
@@ -27,7 +29,7 @@ function allSubsectionNames(budget: ParsedBudget): Set<string> {
   );
 }
 
-export default function BudgetView({ budget, fileName, onReset, onBudgetChange }: BudgetViewProps) {
+export default function BudgetView({ budget, fileName, onReset, isSavedBudget = false, onBudgetChange, onSaveAsSavedBudget }: BudgetViewProps) {
   const [activeTab, setActiveTab] = useState<Tab>("report");
   const [editMode, setEditMode] = useState(false);
 
@@ -222,14 +224,19 @@ export default function BudgetView({ budget, fileName, onReset, onBudgetChange }
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             {fileName} · {budget.sheetName} · {budget.rows.filter((r) => r.rowType === "item").length} line items
           </p>
-          {onBudgetChange && (
+          {isSavedBudget && onBudgetChange && (
             <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
               Saved locally in this browser. Manual edits update the saved budget automatically.
             </p>
           )}
+          {!isSavedBudget && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              This uploaded budget is temporary. It is not saved unless you press Save as Saved Budget.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          {onBudgetChange && (
+          {isSavedBudget && onBudgetChange && (
             <button
               onClick={() => {
                 setActiveTab("report");
@@ -238,6 +245,14 @@ export default function BudgetView({ budget, fileName, onReset, onBudgetChange }
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 ${editMode ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}
             >
               {editMode ? "Done Editing" : "Edit Saved Budget"}
+            </button>
+          )}
+          {!isSavedBudget && onSaveAsSavedBudget && (
+            <button
+              onClick={() => onSaveAsSavedBudget(budget)}
+              className="px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 bg-blue-600 text-white hover:bg-blue-700"
+            >
+              Save as Saved Budget
             </button>
           )}
           <button
@@ -339,7 +354,7 @@ export default function BudgetView({ budget, fileName, onReset, onBudgetChange }
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
             Click a section or subsection header row to expand / collapse it. Use <strong>Expand All / Collapse All</strong> in the nav bar above.
           </p>
-          {editMode && (
+          {isSavedBudget && editMode && (
             <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
               Editing mode is on. Change names, codes, or monthly figures here and the saved budget will be updated automatically.
             </div>
@@ -351,7 +366,7 @@ export default function BudgetView({ budget, fileName, onReset, onBudgetChange }
               expandedSubsections={expandedSubsections}
               onToggleSection={toggleSection}
               onToggleSubsection={toggleSubsection}
-              editable={editMode}
+              editable={isSavedBudget && editMode}
               onRowTextChange={handleRowTextChange}
               onRowValueChange={handleRowValueChange}
             />

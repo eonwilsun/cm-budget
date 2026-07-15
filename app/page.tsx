@@ -30,6 +30,7 @@ export default function Home() {
   // Budget flow
   const [budgetData, setBudgetData] = useState<ParsedBudget | null>(null);
   const [savedBudget, setSavedBudget] = useState<ParsedBudget | null>(null);
+  const [isViewingSavedBudget, setIsViewingSavedBudget] = useState(false);
 
   useEffect(() => {
     try {
@@ -44,15 +45,32 @@ export default function Home() {
 
   const persistBudget = useCallback((budget: ParsedBudget) => {
     const normalizedBudget = normalizeBudgetSubsections(budget);
-    setBudgetData(normalizedBudget);
     setSavedBudget(normalizedBudget);
     window.localStorage.setItem(SAVED_BUDGET_KEY, JSON.stringify(normalizedBudget));
+    if (isViewingSavedBudget) {
+      setBudgetData(normalizedBudget);
+    }
+  }, [isViewingSavedBudget]);
+
+  const showBudget = useCallback((budget: ParsedBudget) => {
+    const normalizedBudget = normalizeBudgetSubsections(budget);
+    setBudgetData(normalizedBudget);
+    setIsViewingSavedBudget(false);
+  }, []);
+
+  const saveCurrentBudget = useCallback((budget: ParsedBudget) => {
+    const normalizedBudget = normalizeBudgetSubsections(budget);
+    setBudgetData(normalizedBudget);
+    setIsViewingSavedBudget(true);
+    setFileName(`Saved Budget · ${normalizedBudget.sheetName}`);
+    persistBudget(normalizedBudget);
   }, []);
 
   const openSavedBudget = useCallback(() => {
     if (!savedBudget) return;
     setError(null);
     setBudgetData(savedBudget);
+    setIsViewingSavedBudget(true);
     setFileName(`Saved Budget · ${savedBudget.sheetName}`);
     setAppState("budget");
   }, [savedBudget]);
@@ -60,7 +78,12 @@ export default function Home() {
   const clearSavedBudget = useCallback(() => {
     window.localStorage.removeItem(SAVED_BUDGET_KEY);
     setSavedBudget(null);
-  }, []);
+    if (isViewingSavedBudget) {
+      setBudgetData(null);
+      setAppState("idle");
+      setIsViewingSavedBudget(false);
+    }
+  }, [isViewingSavedBudget]);
 
   // ── After a sheet is chosen, decide which flow to use ───────────────────
   const handleSheetSelected = useCallback(
@@ -71,7 +94,7 @@ export default function Home() {
         if (isBudgetSheet(wb.buffer, sheetName)) {
           const parsed = parseBudgetSheet(wb.buffer, sheetName);
           if (parsed && parsed.rows.length > 0) {
-            persistBudget(parsed);
+            showBudget(parsed);
             setAppState("budget");
             return;
           }
@@ -82,7 +105,7 @@ export default function Home() {
           const { transactions: txns, sectionBalances: balances } = parseMultiSectionSheet(wb.buffer, sheetName);
           setTransactions(txns);
           setSectionBalances(balances);
-          persistBudget(buildBudgetFromNominalTransactions(txns, sheetName));
+          showBudget(buildBudgetFromNominalTransactions(txns, sheetName));
           setAppState("budget");
           return;
         }
@@ -114,7 +137,7 @@ export default function Home() {
     try {
       if (file.name.toLowerCase().endsWith(".pdf")) {
         const parsed = await parseNominalActivityPdf(file);
-        persistBudget(parsed);
+        showBudget(parsed);
         setAppState("budget");
         setLoading(false);
         return;
@@ -147,6 +170,7 @@ export default function Home() {
     setTransactions([]);
     setSectionBalances([]);
     setBudgetData(null);
+    setIsViewingSavedBudget(false);
   }, []);
 
   const showNewUploadBtn = appState === "dashboard" || appState === "budget";
@@ -230,7 +254,7 @@ export default function Home() {
                       Saved Budget
                     </p>
                     <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                      Best place: keep your manual budget here. Open it, edit the figures directly, and this browser will reuse it next time without another upload.
+                      Best place: keep your manual budget here. Only this saved budget table is stored locally in your browser. Temporary uploads are not kept unless you save them here on purpose.
                     </p>
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                       {savedBudget.sheetName}{savedBudget.year ? ` · ${savedBudget.year}` : ""}
@@ -332,7 +356,7 @@ export default function Home() {
 
         {/* ── BUDGET REPORT ─────────────────────────────────────────────── */}
         {appState === "budget" && budgetData && (
-          <BudgetView budget={budgetData} fileName={fileName} onReset={handleReset} onBudgetChange={persistBudget} />
+          <BudgetView budget={budgetData} fileName={fileName} onReset={handleReset} isSavedBudget={isViewingSavedBudget} onBudgetChange={isViewingSavedBudget ? persistBudget : undefined} onSaveAsSavedBudget={!isViewingSavedBudget ? saveCurrentBudget : undefined} />
         )}
       </main>
 
