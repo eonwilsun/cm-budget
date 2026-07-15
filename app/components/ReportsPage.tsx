@@ -31,10 +31,60 @@ export default function ReportsPage() {
         return Object.values(row)[idx];
       }
     }
+
+    if (typeof row.rawText === "string") {
+      return row.rawText;
+    }
+
     return "";
   };
 
+  const extractPdfTextLines = (textContent: any) => {
+    const lines = new Map<number, string[]>();
+    textContent.items.forEach((item: any) => {
+      const y = item.transform?.[5] ? Math.round(item.transform[5]) : 0;
+      const line = (lines.get(y) ?? []).concat(item.str);
+      lines.set(y, line);
+    });
+
+    return Array.from(lines.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([, items]) => items.join(" ").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+  };
+
+  const parsePdfRows = async (file: File): Promise<Record<string, unknown>[]> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+    const pdf = await loadingTask.promise;
+
+    const rows: Record<string, unknown>[] = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      const pageLines = extractPdfTextLines(textContent);
+
+      for (const line of pageLines) {
+        const lower = line.toLowerCase();
+        if (/^\s*(page|date|transaction|totals?|history balance|account balance|opening balance|closing balance|n\/c|ref|statement|name|nominal activity|car|bank|page:)/i.test(line)) {
+          continue;
+        }
+        if (!/[\d]/.test(line)) {
+          continue;
+        }
+        rows.push({ rawText: line });
+      }
+    }
+    return rows;
+  };
+
   const parseRowsFromFile = async (file: File): Promise<Record<string, unknown>[]> => {
+    const fileName = file.name.toLowerCase();
+    if (fileName.endsWith(".pdf")) {
+      return parsePdfRows(file);
+    }
+
     const workbook = await readWorkbook(file);
     const sheetName = workbook.sheetNames[0];
     const { rows } = parseTransactionSheet(workbook.buffer, sheetName);
@@ -52,6 +102,12 @@ export default function ReportsPage() {
     return null;
   };
 
+  const parseAmountFromRawText = (rawText: string): number => {
+    const matches = Array.from(rawText.matchAll(/-?[0-9,]+(?:\.[0-9]+)?/g)).map((m) => m[0]);
+    if (matches.length === 0) return 0;
+    return parseAmount(matches[matches.length - 1]);
+  };
+
   const normalizeRowAmount = (row: Record<string, unknown>): number => {
     const rawAmount = getRowValue(row, ["amount", "amt", "value", "total"]);
     const explicitAmount = parseAmount(rawAmount);
@@ -62,6 +118,10 @@ export default function ReportsPage() {
     const debitCreditAmount = getDebitCreditAmount(row);
     if (debitCreditAmount !== null) {
       return debitCreditAmount;
+    }
+
+    if (typeof row.rawText === "string") {
+      return parseAmountFromRawText(row.rawText);
     }
 
     return parseAmount(getRowValue(row, ["debit", "credit"]));
@@ -418,6 +478,12 @@ function DocumentUploadForm({ onSubmit, loading }: DocumentUploadFormProps) {
   ) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!file.name.toLowerCase().endsWith(".xlsx") &&
+          !file.name.toLowerCase().endsWith(".xls") &&
+          !file.name.toLowerCase().endsWith(".pdf")) {
+        alert("Please upload an Excel or PDF document.");
+        return;
+      }
       setFiles((prev) => ({ ...prev, [key]: file }));
     }
   };
@@ -465,7 +531,7 @@ function DocumentUploadForm({ onSubmit, loading }: DocumentUploadFormProps) {
               </div>
               <input
                 type="file"
-                accept=".xlsx,.xls,.csv"
+                accept=".xlsx,.xls,.csv,.pdf"
                 onChange={(e) => handleFileChange(e, key as keyof typeof files)}
                 className="hidden"
               />

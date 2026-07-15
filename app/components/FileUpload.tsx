@@ -13,7 +13,7 @@ export default function FileUpload({ onFile }: FileUploadProps) {
   const handleFile = useCallback(
     (file: File) => {
       if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
-        setError("Please upload a valid Excel file (.xlsx or .xls).");
+        setError("Please upload a supported document (.xlsx or .xls).");
         return;
       }
       setError(null);
@@ -59,7 +59,7 @@ export default function FileUpload({ onFile }: FileUploadProps) {
           </svg>
           <div>
             <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">
-              Drop your Excel file here
+              Drop your document here
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               or click to browse
