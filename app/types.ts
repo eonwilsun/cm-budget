@@ -134,8 +134,21 @@ export interface DebtorsReportData {
   outstandingCount: number;
 }
 
+export interface CashAtBankItem {
+  code: string;
+  name: string;
+  balance: number;
+  category: string;
+}
+
+export interface CashAtBankReportData {
+  items: CashAtBankItem[];
+  total: number;
+}
+
 export interface ReportData {
   expenditure: ExpenditureReportData;
   debtors: DebtorsReportData;
+  cashAtBank: CashAtBankReportData;
   generatedAt: string;
 }

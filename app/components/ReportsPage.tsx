@@ -3,9 +3,10 @@
 import React, { useState, useRef } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-import type { ReportData, ExpenditureItem, DebtorItem } from "../types";
+import type { ReportData, ExpenditureItem, DebtorItem, CashAtBankItem } from "../types";
 import ExpenditureReport from "./ExpenditureReport";
 import DebtorsReport from "./DebtorsReport";
+import { readWorkbook, parseTransactionSheet, parseAmount, parseDateString } from "../lib/parseExcel";
 
 interface DocumentsInput {
   cashAtBank: Record<string, unknown>[];
@@ -18,70 +19,170 @@ export default function ReportsPage() {
   const [appState, setAppState] = useState<"input" | "display">("input");
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
+  const cashAtBankRef = useRef<HTMLDivElement>(null);
   const expenditureRef = useRef<HTMLDivElement>(null);
   const debtorsRef = useRef<HTMLDivElement>(null);
 
-  // Process uploaded documents into structured reports
+  const getRowValue = (row: Record<string, unknown>, keys: string[]): unknown => {
+    const lowerKeys = Object.keys(row).map((k) => k.toLowerCase());
+    for (const target of keys) {
+      const idx = lowerKeys.findIndex((key) => key.includes(target));
+      if (idx !== -1) {
+        return Object.values(row)[idx];
+      }
+    }
+    return "";
+  };
+
+  const parseRowsFromFile = async (file: File): Promise<Record<string, unknown>[]> => {
+    const workbook = await readWorkbook(file);
+    const sheetName = workbook.sheetNames[0];
+    const { rows } = parseTransactionSheet(workbook.buffer, sheetName);
+    return rows;
+  };
+
+  const getDebitCreditAmount = (row: Record<string, unknown>): number | null => {
+    const debit = parseAmount(getRowValue(row, ["debit", "withdrawal", "withdrawals", "out"]));
+    const credit = parseAmount(getRowValue(row, ["credit", "deposit", "deposits", "in"]));
+
+    if (debit !== 0 || credit !== 0) {
+      return credit - debit;
+    }
+
+    return null;
+  };
+
+  const normalizeRowAmount = (row: Record<string, unknown>): number => {
+    const rawAmount = getRowValue(row, ["amount", "amt", "value", "total"]);
+    const explicitAmount = parseAmount(rawAmount);
+    if (explicitAmount !== 0) {
+      return explicitAmount;
+    }
+
+    const debitCreditAmount = getDebitCreditAmount(row);
+    if (debitCreditAmount !== null) {
+      return debitCreditAmount;
+    }
+
+    return parseAmount(getRowValue(row, ["debit", "credit"]));
+  };
+
+  const normalizeRowDate = (row: Record<string, unknown>): string => {
+    return parseDateString(
+      getRowValue(row, ["date", "transaction date", "value date", "invoice date", "payment date", "due date"])
+    );
+  };
+
+  const normalizeRowString = (row: Record<string, unknown>, keys: string[], fallback = ""): string => {
+    const value = getRowValue(row, keys);
+    return String(value ?? fallback).trim();
+  };
+
+  const buildExpenditureItems = (rows: Record<string, unknown>[]): ExpenditureItem[] => {
+    return rows
+      .map((row) => {
+        const amount = normalizeRowAmount(row);
+        if (amount === 0) return null;
+
+        const description = normalizeRowString(row, ["description", "details", "narrative", "memo", "particulars", "text", "transaction"]);
+        const category = normalizeRowString(row, ["category", "type", "group", "nominal", "account", "department"], "Other");
+        const accountName = normalizeRowString(row, ["account", "bank", "card", "ledger", "nominal"]);
+        const bankInterestMatch = /bank interest|interest/i.test(`${description} ${accountName}`);
+
+        return {
+          date: normalizeRowDate(row),
+          description,
+          category: bankInterestMatch ? "Bank Interest" : category,
+          amount,
+          account: accountName,
+        };
+      })
+      .filter((item): item is ExpenditureItem => item !== null);
+  };
+
+  const buildDebtorItems = (rows: Record<string, unknown>[]): DebtorItem[] => {
+    return rows
+      .map((row) => {
+        const amount = normalizeRowAmount(row);
+        if (amount === 0) return null;
+
+        return {
+          name: normalizeRowString(row, ["debtor_name", "debtor", "name", "customer", "client", "company"]),
+          reference: normalizeRowString(row, ["reference", "invoice_no", "invoice", "ref", "inv"], ""),
+          amount,
+          date: normalizeRowDate(row),
+          status: normalizeRowString(row, ["status", "payment status", "state", "invoice status"], "Outstanding"),
+          notes: normalizeRowString(row, ["notes", "remarks", "comment", "description", "details"], ""),
+        };
+      })
+      .filter((item): item is DebtorItem => item !== null && item.name !== "");
+  };
+
+  const buildCashAtBankItems = (rows: Record<string, unknown>[]): CashAtBankItem[] => {
+    return rows
+      .map((row) => {
+        const balance = normalizeRowAmount(row);
+        if (balance === 0) return null;
+
+        const name = normalizeRowString(row, ["name", "account", "description", "details", "item"], "");
+        const code = normalizeRowString(row, ["n/c", "code", "account number", "ref", "id"], "");
+        if (!name && !code) return null;
+
+        const lowerName = name.toLowerCase();
+        const category = lowerName.includes("bank interest")
+          ? "Bank Interest"
+          : lowerName.includes("saving") || lowerName.includes("savings")
+          ? "Saving"
+          : lowerName.includes("current")
+          ? "Current"
+          : "Other";
+
+        return {
+          code,
+          name,
+          balance,
+          category,
+        };
+      })
+      .filter((item): item is CashAtBankItem => item !== null && (item.name !== "" || item.code !== ""));
+  };
+
   const processDocuments = async (documents: DocumentsInput) => {
     setLoading(true);
     try {
-      // Extract expenditure data from PNL and Day books
-      const expenditureItems: ExpenditureItem[] = [];
-      
-      // Process day books receipts for expenditures
-      if (documents.dayBooksReceipts && Array.isArray(documents.dayBooksReceipts)) {
-        documents.dayBooksReceipts.forEach((row: Record<string, unknown>) => {
-          if (row.description && row.amount) {
-            expenditureItems.push({
-              date: String(row.date || ""),
-              description: String(row.description),
-              category: String(row.category || "Other"),
-              amount: Number(row.amount) || 0,
-              account: String(row.account || ""),
-            });
-          }
-        });
-      }
+      const expenditures: ExpenditureItem[] = [
+        ...buildExpenditureItems(documents.dayBooksReceipts),
+        ...buildExpenditureItems(documents.nomactx),
+        ...buildExpenditureItems(documents.pnl),
+      ];
 
-      // Extract debtors data
-      const debtorsItems: DebtorItem[] = [];
-      
-      if (documents.cashAtBank && Array.isArray(documents.cashAtBank)) {
-        documents.cashAtBank.forEach((row: Record<string, unknown>) => {
-          if (row.debtor_name || row.name) {
-            debtorsItems.push({
-              name: String(row.debtor_name || row.name),
-              reference: String(row.reference || row.invoice_no || ""),
-              amount: Number(row.amount || 0),
-              date: String(row.date || ""),
-              status: String(row.status || "Outstanding"),
-              notes: String(row.notes || ""),
-            });
-          }
-        });
-      }
+      const debtorsItems = buildDebtorItems(documents.cashAtBank);
+      const cashAtBankItems = buildCashAtBankItems(documents.cashAtBank);
 
-      // Sort expenditure by date
-      expenditureItems.sort((a, b) => {
+      expenditures.sort((a, b) => {
         const dateA = new Date(a.date);
         const dateB = new Date(b.date);
         return dateB.getTime() - dateA.getTime();
       });
 
-      // Calculate totals
-      const expenditureTotal = expenditureItems.reduce((sum, item) => sum + item.amount, 0);
+      const expenditureTotal = expenditures.reduce((sum, item) => sum + item.amount, 0);
       const debtorsTotal = debtorsItems.reduce((sum, item) => sum + item.amount, 0);
+      const cashAtBankTotal = cashAtBankItems.reduce((sum, item) => sum + item.balance, 0);
 
       const newReportData: ReportData = {
         expenditure: {
-          items: expenditureItems,
+          items: expenditures,
           total: expenditureTotal,
-          categories: [...new Set(expenditureItems.map((i) => i.category))],
+          categories: [...new Set(expenditures.map((i) => i.category))],
         },
         debtors: {
           items: debtorsItems,
           total: debtorsTotal,
-          outstandingCount: debtorsItems.filter((d) => d.status === "Outstanding").length,
+          outstandingCount: debtorsItems.filter((d) => d.status.toLowerCase().includes("outstanding")).length,
+        },
+        cashAtBank: {
+          items: cashAtBankItems,
+          total: cashAtBankTotal,
         },
         generatedAt: new Date().toLocaleDateString(),
       };
@@ -90,7 +191,7 @@ export default function ReportsPage() {
       setAppState("display");
     } catch (error) {
       console.error("Error processing documents:", error);
-      alert("Error processing documents. Please check the format.");
+      alert("Error processing documents. Please check the format and column names.");
     } finally {
       setLoading(false);
     }
@@ -102,53 +203,14 @@ export default function ReportsPage() {
     nomactxFile: File,
     pnlFile: File
   ) => {
-    // This is a placeholder - in production, you'd parse the Excel/CSV files
-    // using the existing parseExcel/parseCSV functions from your lib
-    const documents: DocumentsInput = {
-      cashAtBank: [],
-      dayBooksReceipts: [],
-      nomactx: [],
-      pnl: [],
-    };
+    const [cashAtBank, dayBooksReceipts, nomactx, pnl] = await Promise.all([
+      parseRowsFromFile(cashAtBankFile),
+      parseRowsFromFile(dayBooksFile),
+      parseRowsFromFile(nomactxFile),
+      parseRowsFromFile(pnlFile),
+    ]);
 
-    // For now, use mock data
-    documents.dayBooksReceipts = [
-      {
-        date: "2024-01-15",
-        description: "Office Supplies",
-        category: "Supplies",
-        amount: 250,
-        account: "General",
-      },
-      {
-        date: "2024-01-10",
-        description: "Client Meeting Expenses",
-        category: "Travel",
-        amount: 125,
-        account: "Travel",
-      },
-    ];
-
-    documents.cashAtBank = [
-      {
-        name: "ABC Ltd",
-        reference: "INV-001",
-        amount: 5000,
-        date: "2023-12-01",
-        status: "Outstanding",
-        notes: "Payment pending",
-      },
-      {
-        name: "XYZ Corp",
-        reference: "INV-002",
-        amount: 3200,
-        date: "2023-11-15",
-        status: "Outstanding",
-        notes: "",
-      },
-    ];
-
-    await processDocuments(documents);
+    await processDocuments({ cashAtBank, dayBooksReceipts, nomactx, pnl });
   };
 
   const downloadPDF = async (
@@ -233,6 +295,54 @@ export default function ReportsPage() {
         {/* DISPLAY STATE */}
         {appState === "display" && reportData && (
           <div className="space-y-8">
+            {/* Cash at Bank Report */}
+            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-8">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Cash at Bank
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Current and saving accounts
+                  </p>
+                </div>
+                <button
+                  onClick={() => downloadPDF(cashAtBankRef, "cash-at-bank-report")}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                >
+                  Download PDF
+                </button>
+              </div>
+              <div ref={cashAtBankRef} className="overflow-x-auto mb-6">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-2 px-3 font-semibold text-gray-700 dark:text-gray-300">Code</th>
+                      <th className="text-left py-2 px-3 font-semibold text-gray-700 dark:text-gray-300">Account</th>
+                      <th className="text-left py-2 px-3 font-semibold text-gray-700 dark:text-gray-300">Type</th>
+                      <th className="text-right py-2 px-3 font-semibold text-gray-700 dark:text-gray-300">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportData.cashAtBank.items.map((item, idx) => (
+                      <tr key={idx} className="border-b border-gray-200 dark:border-gray-700">
+                        <td className="py-2 px-3 text-gray-900 dark:text-white font-mono">{item.code}</td>
+                        <td className="py-2 px-3 text-gray-900 dark:text-white">{item.name}</td>
+                        <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{item.category}</td>
+                        <td className="py-2 px-3 text-right font-semibold text-gray-900 dark:text-white">£{item.balance.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                      <td colSpan={3} className="py-3 px-3 font-bold text-gray-900 dark:text-white">Total Cash at Bank</td>
+                      <td className="py-3 px-3 text-right font-bold text-gray-900 dark:text-white">£{reportData.cashAtBank.total.toFixed(2)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
             {/* Expenditure Report */}
             <div>
               <div className="flex items-center justify-between mb-4">

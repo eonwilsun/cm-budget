@@ -33,7 +33,7 @@ function isJunkRow(row: Record<string, unknown>): boolean {
 //   • Excel serial numbers
 // Returns "YYYY-MM-DD" or "" when unrecognisable.
 // ---------------------------------------------------------------------------
-function parseDateString(raw: unknown): string {
+export function parseDateString(raw: unknown): string {
   if (!raw && raw !== 0) return "";
 
   // Already a Date (xlsx cellDates: true)
@@ -87,7 +87,7 @@ function parseDateString(raw: unknown): string {
 // Parse a monetary value from a cell, stripping currency symbols and commas.
 // Supports accounting-style parenthesis negatives: (7,035) → -7035
 // ---------------------------------------------------------------------------
-function parseAmount(raw: unknown): number {
+export function parseAmount(raw: unknown): number {
   if (typeof raw === "number") return raw;
   if (typeof raw === "string") {
     const s = raw.trim();
