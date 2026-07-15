@@ -113,6 +113,9 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
     setExporting(key);
     try {
       await action();
+    } catch (error) {
+      console.error("Export failed", error);
+      window.alert("Download failed. Please try again.");
     } finally {
       setExporting(null);
     }
@@ -215,57 +218,58 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
 
   return (
     <div className="space-y-0">
-      {/* ── Page header ───────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Budget Report{budget.year ? ` ${budget.year}` : ""}
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            {fileName} · {budget.sheetName} · {budget.rows.filter((r) => r.rowType === "item").length} line items
-          </p>
-          {isSavedBudget && onBudgetChange && (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-              Saved locally in this browser. Manual edits update the saved budget automatically.
-            </p>
-          )}
-          {!isSavedBudget && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-              This uploaded budget is temporary. It is not saved unless you press Save as Saved Budget.
-            </p>
-          )}
+      <div className="sticky top-14 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 mb-6">
+        <div className="px-4 sm:px-6 lg:px-8 pt-3 pb-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Budget Report{budget.year ? ` ${budget.year}` : ""}
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                {fileName} · {budget.sheetName} · {budget.rows.filter((r) => r.rowType === "item").length} line items
+              </p>
+              {isSavedBudget && onBudgetChange && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                  Saved locally in this browser. Manual edits update the saved budget automatically.
+                </p>
+              )}
+              {!isSavedBudget && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  This uploaded budget is temporary. It is not saved unless you press Save as Saved Budget.
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {isSavedBudget && onBudgetChange && (
+                <button
+                  onClick={() => {
+                    setActiveTab("report");
+                    setEditMode((prev) => !prev);
+                  }}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 ${editMode ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}
+                >
+                  {editMode ? "Done Editing" : "Edit Saved Budget"}
+                </button>
+              )}
+              {!isSavedBudget && onSaveAsSavedBudget && (
+                <button
+                  onClick={() => onSaveAsSavedBudget(budget)}
+                  className="px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Save as Saved Budget
+                </button>
+              )}
+              <button
+                onClick={onReset}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"
+              >
+                ↑ Upload New File
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isSavedBudget && onBudgetChange && (
-            <button
-              onClick={() => {
-                setActiveTab("report");
-                setEditMode((prev) => !prev);
-              }}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 ${editMode ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}
-            >
-              {editMode ? "Done Editing" : "Edit Saved Budget"}
-            </button>
-          )}
-          {!isSavedBudget && onSaveAsSavedBudget && (
-            <button
-              onClick={() => onSaveAsSavedBudget(budget)}
-              className="px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 bg-blue-600 text-white hover:bg-blue-700"
-            >
-              Save as Saved Budget
-            </button>
-          )}
-          <button
-            onClick={onReset}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"
-          >
-            ↑ Upload New File
-          </button>
-        </div>
-      </div>
 
-      {/* ── Sticky navigation bar ─────────────────────────────────────────── */}
-      <div className="sticky top-14 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2 mb-6">
+        <div className="border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 lg:px-8 py-2">
         <div className="flex flex-wrap items-center gap-2">
           {/* Jump to sections */}
           <span className="text-xs text-gray-400 dark:text-gray-500 font-medium shrink-0">Jump to:</span>
@@ -316,6 +320,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
               <ExportBtn label="📄 PDF" onClick={exportReportPDF} busy={exporting === "rep-pdf"} />
             </>
           )}
+        </div>
         </div>
       </div>
 

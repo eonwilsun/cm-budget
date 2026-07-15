@@ -19,6 +19,19 @@ export async function downloadAsPNG(element: HTMLElement | null, filename: strin
   triggerDownload(url, filename);
 }
 
+/** Capture an element as a JPEG and trigger a browser download. */
+export async function downloadAsJPEG(element: HTMLElement | null, filename: string): Promise<void> {
+  if (!element) return;
+  const { default: html2canvas } = await import("html2canvas");
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+  });
+  const url = canvas.toDataURL("image/jpeg", 0.92);
+  triggerDownload(url, filename);
+}
+
 /**
  * Capture one or more elements and combine them into a single PDF file.
  * Each element becomes one or more A4 pages (portrait).

@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   PieChart, Pie, Cell, ResponsiveContainer,
 } from "recharts";
 import type { ParsedBudget, BudgetRow } from "../types";
+import { downloadAsJPEG, downloadAsPNG } from "../lib/exportUtils";
 
 const SECTION_COLORS = [
   "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
@@ -33,6 +34,10 @@ function sumValues(rows: BudgetRow[], colKeys: string[]): number {
 }
 
 export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
+  const [exporting, setExporting] = useState<string | null>(null);
+  const monthlyChartRef = useRef<HTMLDivElement>(null);
+  const pieChartRef = useRef<HTMLDivElement>(null);
+  const barChartRef = useRef<HTMLDivElement>(null);
   const monthCols = budget.columns.filter((c) => c.monthIndex !== null);
   const budgetCol = budget.columns.find((c) => c.isBudget);
   const monthKeys = monthCols.map((c) => c.key);
@@ -80,6 +85,44 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const headingItems = sectionData;
   const barChartHeight = Math.max(420, headingItems.length * 42);
 
+  async function handleExport(action: () => Promise<void>, key: string) {
+    setExporting(key);
+    try {
+      await action();
+    } catch (error) {
+      console.error("Chart export failed", error);
+      window.alert("Chart download failed. Please try again.");
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  function ChartButtons({ baseName, targetRef, pngKey, jpegKey }: {
+    baseName: string;
+    targetRef: React.RefObject<HTMLDivElement | null>;
+    pngKey: string;
+    jpegKey: string;
+  }) {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => handleExport(() => downloadAsPNG(targetRef.current, `${baseName}.png`), pngKey)}
+          disabled={exporting === pngKey}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+        >
+          {exporting === pngKey ? "Working..." : "PNG"}
+        </button>
+        <button
+          onClick={() => handleExport(() => downloadAsJPEG(targetRef.current, `${baseName}.jpg`), jpegKey)}
+          disabled={exporting === jpegKey}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+        >
+          {exporting === jpegKey ? "Working..." : "JPEG"}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* Summary cards */}
@@ -95,18 +138,23 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
       {/* Income vs Expenditure by month */}
       {monthlyData.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Income vs Expenditure by Month</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v) => fmt(Number(v))} />
-              <Legend />
-              <Bar dataKey="Income" fill="#10b981" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="Expenditure" fill="#ef4444" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Income vs Expenditure by Month</h3>
+            <ChartButtons baseName="cm-budget-income-vs-expenditure" targetRef={monthlyChartRef} pngKey="month-png" jpegKey="month-jpeg" />
+          </div>
+          <div ref={monthlyChartRef}>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v) => fmt(Number(v))} />
+                <Legend />
+                <Bar dataKey="Income" fill="#10b981" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="Expenditure" fill="#ef4444" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
 
@@ -114,40 +162,52 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
         {/* Spend by section */}
         {sectionData.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Spend by Heading</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Hover over a slice to see the heading name and total.
-            </p>
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={sectionData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={100} paddingAngle={1}>
-                  {sectionData.map((_, i) => (
-                    <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v, _name, item) => [fmt(Number(v)), item.payload.name]} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Spend by Heading</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Hover over a slice to see the heading name and total.
+                </p>
+              </div>
+              <ChartButtons baseName="cm-budget-spend-by-heading" targetRef={pieChartRef} pngKey="pie-png" jpegKey="pie-jpeg" />
+            </div>
+            <div ref={pieChartRef}>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={sectionData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={100} paddingAngle={1}>
+                    {sectionData.map((_, i) => (
+                      <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v, _name, item) => [fmt(Number(v)), item.payload.name]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         )}
 
         {/* Top items */}
         {headingItems.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">All Expenditure Headings (Actual)</h3>
-            <ResponsiveContainer width="100%" height={barChartHeight}>
-              <BarChart data={headingItems} layout="vertical" margin={{ top: 8, bottom: 8, left: 8, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis type="number" tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="name" width={220} tick={{ fontSize: 10 }} interval={0} tickFormatter={(value: string) => truncateLabel(value)} />
-                <Tooltip formatter={(v, _name, item) => [fmt(Number(v)), item.payload.name]} />
-                <Bar dataKey="value" fill="#3b82f6" radius={[0, 3, 3, 0]}>
-                  {headingItems.map((_, i) => (
-                    <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">All Expenditure Headings (Actual)</h3>
+              <ChartButtons baseName="cm-budget-all-expenditure-headings" targetRef={barChartRef} pngKey="bar-png" jpegKey="bar-jpeg" />
+            </div>
+            <div ref={barChartRef}>
+              <ResponsiveContainer width="100%" height={barChartHeight}>
+                <BarChart data={headingItems} layout="vertical" margin={{ top: 8, bottom: 8, left: 8, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis type="number" tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="name" width={220} tick={{ fontSize: 10 }} interval={0} tickFormatter={(value: string) => truncateLabel(value)} />
+                  <Tooltip formatter={(v, _name, item) => [fmt(Number(v)), item.payload.name]} />
+                  <Bar dataKey="value" fill="#3b82f6" radius={[0, 3, 3, 0]}>
+                    {headingItems.map((_, i) => (
+                      <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         )}
       </div>
