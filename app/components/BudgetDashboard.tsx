@@ -51,7 +51,7 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const totalBudgetExpend = budgetCol ? sumValues(expendItems, [budgetCol.key]) : 0;
   const totalActualIncome = sumValues(incomeItems, monthKeys);
   const totalActualExpend = sumValues(expendItems, monthKeys);
-  const netBudget = totalBudgetIncome - totalBudgetExpend;
+  const netBudget = totalBudgetAll - totalActualExpend;
   const netActual = totalActualIncome - totalActualExpend;
 
   const summaryCards = [

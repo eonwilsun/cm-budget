@@ -10,7 +10,8 @@ import { readWorkbook, parseTransactionSheet, parseAmount, parseDateString } fro
 import { getPdfJs } from "../lib/pdfText";
 
 interface DocumentsInput {
-  cashAtBank: Record<string, unknown>[];
+  debtorSource: Record<string, unknown>[];
+  cashAtBankSummary: Record<string, unknown>[];
   dayBooksReceipts: Record<string, unknown>[];
   nomactx: Record<string, unknown>[];
   pnl: Record<string, unknown>[];
@@ -93,6 +94,42 @@ export default function ReportsPage() {
         rows.push({ rawText: normalizedLine, sectionCode, sectionName });
       }
     }
+    return rows;
+  };
+
+  const parseCashAtBankSummaryRows = async (file: File): Promise<Record<string, unknown>[]> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfjsLib = await getPdfJs();
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+    const pdf = await loadingTask.promise;
+
+    const rows: Record<string, unknown>[] = [];
+
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      const pageLines = extractPdfTextLines(textContent);
+
+      for (const line of pageLines) {
+        const normalizedLine = line.trim();
+        if (/^(report run|page:|to period|cash at bank|n\/c|name|balance|totals?:)$/i.test(normalizedLine)) {
+          continue;
+        }
+
+        const rowMatch = normalizedLine.match(/^(\d{3,6})\s+(.+?)\s+([0-9,]+(?:\.\d{2})?)$/);
+        if (!rowMatch) {
+          continue;
+        }
+
+        rows.push({
+          rawText: normalizedLine,
+          code: rowMatch[1].trim(),
+          name: rowMatch[2].trim(),
+          balance: parseAmount(rowMatch[3]),
+        });
+      }
+    }
+
     return rows;
   };
 
@@ -206,7 +243,12 @@ export default function ReportsPage() {
   const buildCashAtBankItems = (rows: Record<string, unknown>[]): CashAtBankItem[] => {
     return rows
       .map((row) => {
-        const balance = normalizeRowAmount(row);
+        const balance =
+          typeof row.balance === "number"
+            ? row.balance
+            : typeof row.balance === "string"
+              ? parseAmount(row.balance)
+              : normalizeRowAmount(row);
         if (balance === 0) return null;
 
         const name = normalizeRowString(row, ["name", "account", "description", "details", "item"], "");
@@ -241,8 +283,8 @@ export default function ReportsPage() {
         ...buildExpenditureItems(documents.pnl),
       ];
 
-      const debtorsItems = buildDebtorItems(documents.cashAtBank);
-      const cashAtBankItems = buildCashAtBankItems(documents.cashAtBank);
+      const debtorsItems = buildDebtorItems(documents.debtorSource);
+      const cashAtBankItems = buildCashAtBankItems(documents.cashAtBankSummary);
 
       expenditures.sort((a, b) => {
         const dateA = new Date(a.date);
@@ -283,19 +325,21 @@ export default function ReportsPage() {
   };
 
   const handleDocumentUpload = async (
-    cashAtBankFile: File,
+    debtorSourceFile: File,
+    cashAtBankSummaryFile: File,
     dayBooksFile: File,
     nomactxFile: File,
     pnlFile: File
   ) => {
-    const [cashAtBank, dayBooksReceipts, nomactx, pnl] = await Promise.all([
-      parseRowsFromFile(cashAtBankFile),
+    const [debtorSource, cashAtBankSummary, dayBooksReceipts, nomactx, pnl] = await Promise.all([
+      parseRowsFromFile(debtorSourceFile),
+      parseCashAtBankSummaryRows(cashAtBankSummaryFile),
       parseRowsFromFile(dayBooksFile),
       parseRowsFromFile(nomactxFile),
       parseRowsFromFile(pnlFile),
     ]);
 
-    await processDocuments({ cashAtBank, dayBooksReceipts, nomactx, pnl });
+    await processDocuments({ debtorSource, cashAtBankSummary, dayBooksReceipts, nomactx, pnl });
   };
 
   const downloadPDF = async (
@@ -380,6 +424,42 @@ export default function ReportsPage() {
         {/* DISPLAY STATE */}
         {appState === "display" && reportData && (
           <div className="space-y-8">
+            {/* Expenditure Report */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Expenditure Report
+                </h2>
+                <button
+                  onClick={() => downloadPDF(expenditureRef, "expenditure-report")}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                >
+                  Download PDF
+                </button>
+              </div>
+              <div ref={expenditureRef}>
+                <ExpenditureReport data={reportData.expenditure} />
+              </div>
+            </div>
+
+            {/* Debtors Report */}
+            <div className="mt-12">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Debtors Report
+                </h2>
+                <button
+                  onClick={() => downloadPDF(debtorsRef, "debtors-report")}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                >
+                  Download PDF
+                </button>
+              </div>
+              <div ref={debtorsRef}>
+                <DebtorsReport data={reportData.debtors} />
+              </div>
+            </div>
+
             {/* Cash at Bank Report */}
             <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-8">
               <div className="flex items-center justify-between mb-4">
@@ -427,42 +507,6 @@ export default function ReportsPage() {
                 </table>
               </div>
             </div>
-
-            {/* Expenditure Report */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Expenditure Report
-                </h2>
-                <button
-                  onClick={() => downloadPDF(expenditureRef, "expenditure-report")}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
-                >
-                  Download PDF
-                </button>
-              </div>
-              <div ref={expenditureRef}>
-                <ExpenditureReport data={reportData.expenditure} />
-              </div>
-            </div>
-
-            {/* Debtors Report */}
-            <div className="mt-12">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Debtors Report
-                </h2>
-                <button
-                  onClick={() => downloadPDF(debtorsRef, "debtors-report")}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
-                >
-                  Download PDF
-                </button>
-              </div>
-              <div ref={debtorsRef}>
-                <DebtorsReport data={reportData.debtors} />
-              </div>
-            </div>
           </div>
         )}
       </main>
@@ -476,7 +520,8 @@ export default function ReportsPage() {
 
 interface DocumentUploadFormProps {
   onSubmit: (
-    cashAtBank: File,
+    debtorSource: File,
+    cashAtBankSummary: File,
     dayBooks: File,
     nomactx: File,
     pnl: File
@@ -486,12 +531,14 @@ interface DocumentUploadFormProps {
 
 function DocumentUploadForm({ onSubmit, loading }: DocumentUploadFormProps) {
   const [files, setFiles] = useState<{
-    cashAtBank: File | null;
+    debtorSource: File | null;
+    cashAtBankSummary: File | null;
     dayBooks: File | null;
     nomactx: File | null;
     pnl: File | null;
   }>({
-    cashAtBank: null,
+    debtorSource: null,
+    cashAtBankSummary: null,
     dayBooks: null,
     nomactx: null,
     pnl: null,
@@ -514,15 +561,16 @@ function DocumentUploadForm({ onSubmit, loading }: DocumentUploadFormProps) {
   };
 
   const handleSubmit = () => {
-    if (files.cashAtBank && files.dayBooks && files.nomactx && files.pnl) {
-      onSubmit(files.cashAtBank, files.dayBooks, files.nomactx, files.pnl);
+    if (files.debtorSource && files.cashAtBankSummary && files.dayBooks && files.nomactx && files.pnl) {
+      onSubmit(files.debtorSource, files.cashAtBankSummary, files.dayBooks, files.nomactx, files.pnl);
     } else {
-      alert("Please upload all four documents");
+      alert("Please upload all five documents");
     }
   };
 
   const documentTypes = [
-    { key: "cashAtBank", label: "Cash at Bank", icon: "🏦" },
+    { key: "debtorSource", label: "Debtors / Source", icon: "🧾" },
+    { key: "cashAtBankSummary", label: "Cash at Bank Report", icon: "🏦" },
     { key: "dayBooks", label: "Day Books Receipts", icon: "📝" },
     { key: "nomactx", label: "Nomactx", icon: "📋" },
     { key: "pnl", label: "P&L", icon: "💹" },
@@ -535,7 +583,7 @@ function DocumentUploadForm({ onSubmit, loading }: DocumentUploadFormProps) {
           Generate Financial Reports
         </h1>
         <p className="text-gray-500 dark:text-gray-400">
-          Upload your financial documents to generate expenditure and debtors reports
+          Upload your financial documents to generate expenditure, debtors, and cash-at-bank reports
         </p>
       </div>
 
@@ -567,7 +615,7 @@ function DocumentUploadForm({ onSubmit, loading }: DocumentUploadFormProps) {
 
       <button
         onClick={handleSubmit}
-        disabled={loading || !files.cashAtBank || !files.dayBooks || !files.nomactx || !files.pnl}
+        disabled={loading || !files.debtorSource || !files.cashAtBankSummary || !files.dayBooks || !files.nomactx || !files.pnl}
         className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium"
       >
         {loading ? "Processing..." : "Generate Reports"}
