@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import type { AppState, Transaction, WorkbookMeta, ParsedBudget, SectionBalance } from "./types";
 import { readWorkbook, parseTransactionSheet, detectMapping, mapRows, isMultiSectionFormat, parseMultiSectionSheet } from "./lib/parseExcel";
 import { isBudgetSheet, parseBudgetSheet } from "./lib/parseBudget";
-import { buildBudgetFromNominalTransactions, parseNominalActivityPdf } from "./lib/nominalActivity";
+import { buildBudgetFromNominalTransactions, normalizeBudgetSubsections, parseNominalActivityPdf } from "./lib/nominalActivity";
 import FileUpload from "./components/FileUpload";
 import SheetPicker from "./components/SheetPicker";
 import Dashboard from "./components/Dashboard";
@@ -35,7 +35,7 @@ export default function Home() {
     try {
       const raw = window.localStorage.getItem(SAVED_BUDGET_KEY);
       if (raw) {
-        setSavedBudget(JSON.parse(raw) as ParsedBudget);
+        setSavedBudget(normalizeBudgetSubsections(JSON.parse(raw) as ParsedBudget));
       }
     } catch {
       window.localStorage.removeItem(SAVED_BUDGET_KEY);
@@ -43,9 +43,10 @@ export default function Home() {
   }, []);
 
   const persistBudget = useCallback((budget: ParsedBudget) => {
-    setBudgetData(budget);
-    setSavedBudget(budget);
-    window.localStorage.setItem(SAVED_BUDGET_KEY, JSON.stringify(budget));
+    const normalizedBudget = normalizeBudgetSubsections(budget);
+    setBudgetData(normalizedBudget);
+    setSavedBudget(normalizedBudget);
+    window.localStorage.setItem(SAVED_BUDGET_KEY, JSON.stringify(normalizedBudget));
   }, []);
 
   const openSavedBudget = useCallback(() => {

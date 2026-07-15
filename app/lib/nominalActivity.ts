@@ -9,6 +9,20 @@ type NominalActivityEntry = {
   amount: number;
 };
 
+function splitNominalName(name: string): { subsectionName: string; itemName: string } {
+  const parts = name.split(":");
+  if (parts.length < 2) {
+    return { subsectionName: "", itemName: name.trim() };
+  }
+
+  const subsectionName = parts[0].trim();
+  const itemName = parts.slice(1).join(":").trim();
+  return {
+    subsectionName,
+    itemName: itemName || subsectionName,
+  };
+}
+
 function classifySectionType(code: string): SectionType {
   const numericCode = parseInt(code.replace(/\D/g, ""), 10);
   if (!Number.isFinite(numericCode)) return "unknown";
@@ -82,6 +96,7 @@ export function buildBudgetFromNominalTransactions(
   const columns = buildColumns(monthDates, year);
   const budgetRows: BudgetRow[] = [];
   const itemsByKey = new Map<string, BudgetRow>();
+  const subsectionKeys = new Set<string>();
   const presentSections = new Set<SectionType>();
 
   for (const sectionType of ["income", "expenditure"] as const) {
@@ -104,18 +119,36 @@ export function buildBudgetFromNominalTransactions(
       .filter((entry) => classifySectionType(entry.code) === sectionType)
       .sort((a, b) => a.code.localeCompare(b.code) || a.name.localeCompare(b.name))
       .forEach((entry) => {
-        const rowKey = `${sectionType}::${entry.code}::${entry.name}`;
+        const { subsectionName, itemName } = splitNominalName(entry.name);
+        const subsectionKey = `${sectionType}::${subsectionName}`;
+
+        if (subsectionName && !subsectionKeys.has(subsectionKey)) {
+          subsectionKeys.add(subsectionKey);
+          budgetRows.push({
+            code: "",
+            name: subsectionName,
+            notes: "",
+            values: Object.fromEntries(columns.filter((column) => column.isBudget || column.isTotal || column.monthIndex !== null).map((column) => [column.key, null])),
+            rowType: "subsection",
+            sectionName: sectionType === "income" ? "INCOME" : "EXPENDITURE",
+            sectionType,
+            subsectionName: "",
+            indent: 0,
+          });
+        }
+
+        const rowKey = `${sectionType}::${subsectionName}::${entry.code}::${itemName}`;
         let row = itemsByKey.get(rowKey);
         if (!row) {
           row = {
             code: entry.code,
-            name: entry.name,
+            name: itemName,
             notes: "",
             values: Object.fromEntries(columns.filter((column) => column.isBudget || column.isTotal || column.monthIndex !== null).map((column) => [column.key, null])),
             rowType: "item",
             sectionName: sectionType === "income" ? "INCOME" : "EXPENDITURE",
             sectionType,
-            subsectionName: "",
+            subsectionName,
             indent: 0,
           };
           itemsByKey.set(rowKey, row);
@@ -147,11 +180,62 @@ export function buildBudgetFromNominalTransactions(
     });
   }
 
-  return {
+  return normalizeBudgetSubsections({
     year,
     columns,
     rows: budgetRows,
     sheetName,
+  });
+}
+
+export function normalizeBudgetSubsections(budget: ParsedBudget): ParsedBudget {
+  const nextRows: BudgetRow[] = [];
+  const seenSubsections = new Set<string>();
+
+  for (const row of budget.rows) {
+    if (row.rowType === "subsection") {
+      seenSubsections.add(`${row.sectionName}::${row.name}`);
+      nextRows.push(row);
+      continue;
+    }
+
+    if (row.rowType !== "item" || row.subsectionName) {
+      nextRows.push(row);
+      continue;
+    }
+
+    const { subsectionName, itemName } = splitNominalName(row.name);
+    if (!subsectionName) {
+      nextRows.push(row);
+      continue;
+    }
+
+    const subsectionKey = `${row.sectionName}::${subsectionName}`;
+    if (!seenSubsections.has(subsectionKey)) {
+      seenSubsections.add(subsectionKey);
+      nextRows.push({
+        code: "",
+        name: subsectionName,
+        notes: "",
+        values: Object.fromEntries(Object.keys(row.values).map((key) => [key, null])),
+        rowType: "subsection",
+        sectionName: row.sectionName,
+        sectionType: row.sectionType,
+        subsectionName: "",
+        indent: 0,
+      });
+    }
+
+    nextRows.push({
+      ...row,
+      name: itemName,
+      subsectionName,
+    });
+  }
+
+  return {
+    ...budget,
+    rows: nextRows,
   };
 }
 
