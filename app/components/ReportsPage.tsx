@@ -7,6 +7,7 @@ import type { ReportData, ExpenditureItem, DebtorItem, CashAtBankItem } from "..
 import ExpenditureReport from "./ExpenditureReport";
 import DebtorsReport from "./DebtorsReport";
 import { readWorkbook, parseTransactionSheet, parseAmount, parseDateString } from "../lib/parseExcel";
+import { getPdfJs } from "../lib/pdfText";
 
 interface DocumentsInput {
   cashAtBank: Record<string, unknown>[];
@@ -55,7 +56,7 @@ export default function ReportsPage() {
 
   const parsePdfRows = async (file: File): Promise<Record<string, unknown>[]> => {
     const arrayBuffer = await file.arrayBuffer();
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const pdfjsLib = await getPdfJs();
     const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
     const pdf = await loadingTask.promise;
 

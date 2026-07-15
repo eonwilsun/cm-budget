@@ -1,5 +1,6 @@
 import type { BudgetColumn, BudgetRow, ParsedBudget, SectionType, Transaction } from "../types";
 import { parseAmount, parseDateString } from "./parseExcel";
+import { getPdfJs } from "./pdfText";
 
 type NominalActivityEntry = {
   code: string;
@@ -156,7 +157,7 @@ export function buildBudgetFromNominalTransactions(
 
 export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget> {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const pdfjsLib = await getPdfJs();
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
   const pdf = await loadingTask.promise;
 
