@@ -239,6 +239,64 @@ export function normalizeBudgetSubsections(budget: ParsedBudget): ParsedBudget {
   };
 }
 
+function rowKey(row: BudgetRow): string {
+  return [row.code.trim().toLowerCase(), row.subsectionName.trim().toLowerCase(), row.name.trim().toLowerCase()].join("::");
+}
+
+export function mergeActualsIntoSavedBudget(
+  savedBudget: ParsedBudget,
+  actualBudget: ParsedBudget
+): ParsedBudget {
+  const normalizedSavedBudget = normalizeBudgetSubsections(savedBudget);
+  const normalizedActualBudget = normalizeBudgetSubsections(actualBudget);
+  const savedActualColumns = normalizedSavedBudget.columns.filter((column) => column.monthIndex !== null || column.isTotal);
+  const actualRowMap = new Map(
+    normalizedActualBudget.rows
+      .filter((row) => row.rowType === "item")
+      .map((row) => [rowKey(row), row] as const)
+  );
+
+  const nextRows = normalizedSavedBudget.rows.map((row) => {
+    if (row.rowType !== "item") {
+      return {
+        ...row,
+        values: {
+          ...row.values,
+          ...Object.fromEntries(savedActualColumns.map((column) => [column.key, null])),
+        },
+      };
+    }
+
+    const match = actualRowMap.get(rowKey(row));
+    const nextValues = {
+      ...row.values,
+      ...Object.fromEntries(savedActualColumns.map((column) => [column.key, null])),
+    };
+
+    if (match) {
+      savedActualColumns.forEach((savedColumn) => {
+        const actualColumn = normalizedActualBudget.columns.find((column) => {
+          if (savedColumn.isTotal && column.isTotal) return true;
+          return savedColumn.monthIndex !== null && savedColumn.monthIndex === column.monthIndex;
+        });
+        if (actualColumn) {
+          nextValues[savedColumn.key] = match.values[actualColumn.key] ?? null;
+        }
+      });
+    }
+
+    return {
+      ...row,
+      values: nextValues,
+    };
+  });
+
+  return {
+    ...normalizedSavedBudget,
+    rows: nextRows,
+  };
+}
+
 export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget> {
   const arrayBuffer = await file.arrayBuffer();
   const pdfjsLib = await getPdfJs();

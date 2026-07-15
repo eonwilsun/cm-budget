@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import type { AppState, Transaction, WorkbookMeta, ParsedBudget, SectionBalance } from "./types";
 import { readWorkbook, parseTransactionSheet, detectMapping, mapRows, isMultiSectionFormat, parseMultiSectionSheet } from "./lib/parseExcel";
 import { isBudgetSheet, parseBudgetSheet } from "./lib/parseBudget";
-import { buildBudgetFromNominalTransactions, normalizeBudgetSubsections, parseNominalActivityPdf } from "./lib/nominalActivity";
+import { buildBudgetFromNominalTransactions, mergeActualsIntoSavedBudget, normalizeBudgetSubsections, parseNominalActivityPdf } from "./lib/nominalActivity";
 import FileUpload from "./components/FileUpload";
 import SheetPicker from "./components/SheetPicker";
 import Dashboard from "./components/Dashboard";
@@ -137,7 +137,11 @@ export default function Home() {
     try {
       if (file.name.toLowerCase().endsWith(".pdf")) {
         const parsed = await parseNominalActivityPdf(file);
-        showBudget(parsed);
+        const budgetToShow = savedBudget
+          ? mergeActualsIntoSavedBudget(savedBudget, parsed)
+          : parsed;
+        showBudget(budgetToShow);
+        setFileName(savedBudget ? `${file.name} · using Saved Budget` : file.name);
         setAppState("budget");
         setLoading(false);
         return;
@@ -157,7 +161,7 @@ export default function Home() {
       setError(e instanceof Error ? e.message : "An unknown error occurred.");
       setLoading(false);
     }
-  }, [handleSheetSelected]);
+  }, [handleSheetSelected, savedBudget, showBudget]);
 
   // ── Full reset ───────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
