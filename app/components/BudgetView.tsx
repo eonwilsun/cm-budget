@@ -667,6 +667,37 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
           </div>
 
           <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+            {cashAtBankItems.length > 0 && (
+              <div className="mb-6 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">Code</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">Account</th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cashAtBankItems.map((item, idx) => (
+                      <tr key={`${item.code}-${item.name}-${idx}`} className="border-b border-gray-100 dark:border-gray-800">
+                        <td className="px-3 py-2 text-gray-900 dark:text-white font-mono">{item.code}</td>
+                        <td className="px-3 py-2 text-gray-900 dark:text-white">{item.name}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white">£{item.balance.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                      <td colSpan={2} className="px-3 py-3 font-bold text-gray-900 dark:text-white">Total Cash at Bank (Uploaded)</td>
+                      <td className="px-3 py-3 text-right font-bold text-gray-900 dark:text-white">
+                        £{cashAtBankItems.reduce((sum, item) => sum + item.balance, 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
             <div
               onDragEnter={(e) => {
                 e.preventDefault();
@@ -726,37 +757,6 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
                 e.currentTarget.value = "";
               }}
             />
-
-            {cashAtBankItems.length > 0 && (
-              <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">Code</th>
-                      <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">Account</th>
-                      <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cashAtBankItems.map((item, idx) => (
-                      <tr key={`${item.code}-${item.name}-${idx}`} className="border-b border-gray-100 dark:border-gray-800">
-                        <td className="px-3 py-2 text-gray-900 dark:text-white font-mono">{item.code}</td>
-                        <td className="px-3 py-2 text-gray-900 dark:text-white">{item.name}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white">£{item.balance.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                      <td colSpan={2} className="px-3 py-3 font-bold text-gray-900 dark:text-white">Total Cash at Bank (Uploaded)</td>
-                      <td className="px-3 py-3 text-right font-bold text-gray-900 dark:text-white">
-                        £{cashAtBankItems.reduce((sum, item) => sum + item.balance, 0).toFixed(2)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
           </div>
         </section>
       )}

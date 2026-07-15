@@ -66,7 +66,7 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
       <div ref={ref} className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
         <table className="min-w-full text-xs border-collapse" style={{ minWidth: `${codeW + nameW + valueCols.length * 90}px` }}>
           {/* ── HEADER ───────────────────────────────────────────────────── */}
-          <thead className="sticky z-20" style={{ top: stickyTop }}>
+          <thead className="z-20">
             <tr className="bg-gray-800 dark:bg-gray-900 text-white">
               {/* Sticky Code column */}
               <th
