@@ -421,7 +421,7 @@ export function isMultiSectionFormat(buffer: ArrayBuffer, sheetName: string): bo
   for (const row of rawRows.slice(0, 30)) {
     if (!Array.isArray(row) || row.length === 0) continue;
     const firstCell = String(row[0] ?? "").trim();
-    if (/^n\/c\s*:?$/i.test(firstCell)) {
+    if (/^n\/c\s*:?($|\s)/i.test(firstCell)) {
       return true;
     }
   }
@@ -485,13 +485,13 @@ export function parseMultiSectionSheet(
     const firstCell = String(rawRow[0] ?? "").trim();
 
     // ── Metadata: N/C: ─────────────────────────────────────────────────────
-    if (/^n\/c\s*:?$/i.test(firstCell)) {
+    if (/^n\/c\s*:?($|\s)/i.test(firstCell)) {
       currentCode = String(rawRow[1] ?? "").trim();
       continue;
     }
 
     // ── Metadata: Name: ────────────────────────────────────────────────────
-    if (/^name\s*:?$/i.test(firstCell)) {
+    if (/^name\s*:?($|\s)/i.test(firstCell)) {
       finaliseSection();
       currentName = String(rawRow[1] ?? "").trim();
       // Reset header so we pick it up fresh for this section
