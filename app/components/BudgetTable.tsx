@@ -19,7 +19,7 @@ const SECTION_BG: Record<string, string> = {
   expenditure:  "bg-red-700  dark:bg-red-800  text-white",
   unknown:      "bg-gray-700 dark:bg-gray-600 text-white",
 };
-const SUBSECTION_BG = "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100";
+const SUBSECTION_BG = "bg-sky-100 dark:bg-sky-900/50 text-sky-900 dark:text-sky-100";
 const TOTAL_BG      = "bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-gray-50 font-semibold";
 const NET_BG        = "bg-gray-900 dark:bg-gray-950 text-white font-bold";
 

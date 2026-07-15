@@ -58,18 +58,21 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
     Expenditure: Math.round(sumValues(expendItems, [col.key])),
   })).filter((d) => d.Income !== 0 || d.Expenditure !== 0);
 
-  // Spend by section (expenditure sections only)
-  const sectionNames = [...new Set(expendItems.map((r) => r.sectionName))].filter(Boolean);
-  const sectionData = sectionNames.map((sec) => ({
-    name: sec,
-    value: Math.round(sumValues(expendItems.filter((r) => r.sectionName === sec), monthKeys)),
-  })).filter((s) => s.value > 0).sort((a, b) => b.value - a.value);
+  // Spend by subsection heading when present, otherwise by item/section label.
+  const headingTotals = new Map<string, number>();
+  for (const row of expendItems) {
+    const heading = row.subsectionName || row.name || row.sectionName;
+    const current = headingTotals.get(heading) ?? 0;
+    headingTotals.set(heading, current + sumValues([row], monthKeys));
+  }
 
-  // Top 10 items by actual spend
-  const topItems = [...budget.rows]
-    .filter((r) => r.rowType === "item" && r.sectionType === "expenditure")
-    .map((r) => ({ name: r.name || r.code, value: Math.round(sumValues([r], monthKeys)) }))
-    .filter((x) => x.value > 0)
+  const sectionData = Array.from(headingTotals.entries())
+    .map(([name, value]) => ({ name, value: Math.round(value) }))
+    .filter((item) => item.value > 0)
+    .sort((a, b) => b.value - a.value);
+
+  // Top 10 subsection headings by actual spend
+  const topItems = sectionData
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
@@ -107,7 +110,7 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
         {/* Spend by section */}
         {sectionData.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Spend by Section</h3>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Spend by Heading</h3>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={sectionData} dataKey="value" cx="50%" cy="50%" outerRadius={100}>
@@ -125,12 +128,12 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
         {/* Top items */}
         {topItems.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Top 10 Expenditure Items (Actual)</h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={topItems} layout="vertical" margin={{ left: 8, right: 10 }}>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Top 10 Expenditure Headings (Actual)</h3>
+            <ResponsiveContainer width="100%" height={420}>
+              <BarChart data={topItems} layout="vertical" margin={{ top: 8, bottom: 8, left: 8, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis type="number" tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="name" width={220} tick={{ fontSize: 10 }} interval={0} />
                 <Tooltip formatter={(v) => fmt(Number(v))} />
                 <Bar dataKey="value" fill="#3b82f6" radius={[0, 3, 3, 0]}>
                   {topItems.map((_, i) => (
