@@ -425,14 +425,6 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
               >
                 ↑ Upload New File
               </button>
-              <button
-                onClick={() => {
-                  window.location.href = "/reports";
-                }}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors shrink-0"
-              >
-                🏦 Cash at Bank Reports
-              </button>
             </div>
           </div>
         </div>

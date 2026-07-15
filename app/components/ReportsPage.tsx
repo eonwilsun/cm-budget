@@ -22,6 +22,7 @@ export default function ReportsPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
   const [appendCashLoading, setAppendCashLoading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const cashAtBankRef = useRef<HTMLDivElement>(null);
   const expenditureRef = useRef<HTMLDivElement>(null);
   const debtorsRef = useRef<HTMLDivElement>(null);
@@ -394,6 +395,14 @@ export default function ReportsPage() {
     }
   };
 
+  const handleCashDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragActive(false);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (!droppedFile) return;
+    await handleAppendCashAtBankUpload(droppedFile);
+  };
+
   const downloadPDF = async (
     ref: React.RefObject<HTMLDivElement | null>,
     fileName: string
@@ -559,9 +568,45 @@ export default function ReportsPage() {
                 </table>
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                  Upload another cash-at-bank document to append its rows to this report.
-                </p>
+                <div
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragActive(true);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragActive(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setDragActive(false);
+                  }}
+                  onDrop={handleCashDrop}
+                  onClick={() => appendCashFileInputRef.current?.click()}
+                  className={`mx-auto mt-2 w-full max-w-2xl rounded-3xl border-2 border-dashed p-8 text-center transition cursor-pointer ${
+                    dragActive
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950/40"
+                      : "border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-900"
+                  }`}
+                >
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-3xl text-blue-600 dark:bg-blue-900 dark:text-blue-300">
+                    📄
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Drop your cash in bank document here</h3>
+                  <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">or click to browse</p>
+                  <button
+                    type="button"
+                    disabled={appendCashLoading}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      appendCashFileInputRef.current?.click();
+                    }}
+                    className="mt-5 rounded-xl bg-blue-600 px-6 py-3 text-lg font-semibold text-white hover:bg-blue-700 disabled:bg-gray-400"
+                  >
+                    {appendCashLoading ? "Adding..." : "Choose File"}
+                  </button>
+                  <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Supports .xlsx, .xls, and .pdf files</p>
+                </div>
                 <input
                   ref={appendCashFileInputRef}
                   type="file"
@@ -575,14 +620,6 @@ export default function ReportsPage() {
                     e.currentTarget.value = "";
                   }}
                 />
-                <button
-                  type="button"
-                  disabled={appendCashLoading}
-                  onClick={() => appendCashFileInputRef.current?.click()}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium"
-                >
-                  {appendCashLoading ? "Appending..." : "Upload Cash at Bank Doc"}
-                </button>
               </div>
             </div>
           </div>
