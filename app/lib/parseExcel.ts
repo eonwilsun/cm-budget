@@ -184,37 +184,129 @@ export function parseExcelFile(
   });
 }
 
-/** Auto-detect likely column mappings from spreadsheet headers. */
-export function detectMapping(headers: string[]): Partial<ColumnMapping> {
-  const mapping: Partial<ColumnMapping> = {};
+/** Auto-detect likely column mappings from spreadsheet headers and values. */
+export function detectMapping(headers: string[], rows: Record<string, unknown>[]): ColumnMapping {
   const lower = headers.map((h) => h.toLowerCase().trim());
 
-  const find = (candidates: string[]): string | undefined => {
-    for (const c of candidates) {
-      const idx = lower.findIndex((h) => h.includes(c));
+  const findHeader = (candidates: string[]): string | undefined => {
+    for (const candidate of candidates) {
+      const idx = lower.findIndex((header) => header.includes(candidate));
       if (idx !== -1) return headers[idx];
     }
     return undefined;
   };
 
-  mapping.date = find(["date", "transaction date", "posted date", "value date"]);
-  mapping.description = find(["description", "memo", "payee", "merchant", "details", "particulars"]);
-  mapping.category = find(["category", "subcategory", "type", "group"]);
-  mapping.account = find(["account", "bank", "card", "wallet"]);
+  const columnValues = headers.map((header) => rows.map((row) => row[header]));
 
-  // Prefer explicit debit/credit columns over a single amount column
-  const debitCol = find(["debit", "withdrawals", "withdrawal", "out"]);
-  const creditCol = find(["credit", "deposits", "deposit", "in"]);
+  const countMatches = (values: unknown[], predicate: (value: unknown) => boolean): number =>
+    values.filter(predicate).length;
 
-  if (debitCol && creditCol) {
-    mapping.debit = debitCol;
-    mapping.credit = creditCol;
-    mapping.amount = ""; // will be derived
+  const findBestDateColumn = (): string | undefined => {
+    const headerMatch = findHeader(["date", "transaction date", "posted date", "value date"]);
+    if (headerMatch) return headerMatch;
+
+    let bestHeader: string | undefined;
+    let bestScore = 0;
+    headers.forEach((header, index) => {
+      const values = columnValues[index];
+      const score = countMatches(values, (value) => parseDateString(value).length > 0);
+      if (score > bestScore) {
+        bestHeader = header;
+        bestScore = score;
+      }
+    });
+
+    if (bestHeader && bestScore >= Math.max(3, Math.floor(rows.length * 0.25))) {
+      return bestHeader;
+    }
+    return undefined;
+  };
+
+  const findBestNumericColumn = (candidates: string[]): string | undefined => {
+    const headerMatch = findHeader(candidates);
+    if (headerMatch) return headerMatch;
+
+    let bestHeader: string | undefined;
+    let bestScore = 0;
+    headers.forEach((header, index) => {
+      const values = columnValues[index];
+      const score = countMatches(values, (value) => parseAmount(value) !== 0 || String(value).trim() === "0");
+      if (score > bestScore) {
+        bestHeader = header;
+        bestScore = score;
+      }
+    });
+
+    if (bestHeader && bestScore >= Math.max(3, Math.floor(rows.length * 0.25))) {
+      return bestHeader;
+    }
+    return undefined;
+  };
+
+  const findBestTextColumn = (exclude: Set<string> = new Set()): string | undefined => {
+    const headerMatch = findHeader(["description", "memo", "payee", "merchant", "details", "particulars"]);
+    if (headerMatch && !exclude.has(headerMatch)) return headerMatch;
+
+    let bestHeader: string | undefined;
+    let bestScore = 0;
+    headers.forEach((header, index) => {
+      if (exclude.has(header)) return;
+      const values = columnValues[index];
+      const score = countMatches(values, (value) => {
+        if (value === null || value === undefined || String(value).trim() === "") return false;
+        if (typeof value === "number") return false;
+        const str = String(value).trim();
+        return str.length > 3 && str.length < 100 && parseAmount(str) === 0;
+      });
+      if (score > bestScore) {
+        bestHeader = header;
+        bestScore = score;
+      }
+    });
+
+    if (bestHeader && bestScore >= Math.max(3, Math.floor(rows.length * 0.25))) {
+      return bestHeader;
+    }
+    return undefined;
+  };
+
+  const dateHeader = findBestDateColumn();
+  const descriptionHeader = findBestTextColumn(new Set([dateHeader ?? ""])) || headers[1] || headers[0];
+  const categoryHeader = findHeader(["category", "subcategory", "type", "group"]) ?? "";
+  const accountHeader = findHeader(["account", "bank", "card", "wallet"]) ?? "";
+
+  const debitHeader = findHeader(["debit", "withdrawals", "withdrawal", "out"]);
+  const creditHeader = findHeader(["credit", "deposits", "deposit", "in"]);
+  let amountHeader = "";
+  let debit: string | undefined;
+  let credit: string | undefined;
+
+  if (debitHeader && creditHeader) {
+    debit = debitHeader;
+    credit = creditHeader;
   } else {
-    mapping.amount = find(["amount", "value", "sum", "total"]) ?? debitCol ?? creditCol ?? "";
+    amountHeader = findBestNumericColumn(["amount", "value", "sum", "total", "transaction amount"]) ?? "";
   }
 
-  return mapping;
+  if (!dateHeader) {
+    throw new Error("Could not automatically detect the date column. Please verify the sheet contains a date column.");
+  }
+  if (!descriptionHeader) {
+    throw new Error("Could not automatically detect the description column. Please verify the sheet contains a transaction description column.");
+  }
+  if (!amountHeader && !debit) {
+    throw new Error("Could not automatically detect the amount column. Please verify the sheet contains debit/credit or amount columns.");
+  }
+
+  return {
+    date: dateHeader,
+    description: descriptionHeader,
+    category: categoryHeader,
+    account: accountHeader,
+    amount: amountHeader,
+    debit,
+    credit,
+  };
 }
 
 /** Map parsed rows to Transaction objects, applying all filters. */

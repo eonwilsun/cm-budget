@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
-import type { AppState, ColumnMapping, Transaction, WorkbookMeta, ParsedBudget, SectionBalance } from "./types";
+import type { AppState, Transaction, WorkbookMeta, ParsedBudget, SectionBalance } from "./types";
 import { readWorkbook, parseTransactionSheet, detectMapping, mapRows, isMultiSectionFormat, parseMultiSectionSheet } from "./lib/parseExcel";
 import { isBudgetSheet, parseBudgetSheet } from "./lib/parseBudget";
 import FileUpload from "./components/FileUpload";
 import SheetPicker from "./components/SheetPicker";
-import ColumnMapper from "./components/ColumnMapper";
 import Dashboard from "./components/Dashboard";
 import BudgetView from "./components/BudgetView";
 
@@ -22,7 +21,6 @@ export default function Home() {
   // Transaction flow
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [initialMapping, setInitialMapping] = useState<Partial<ColumnMapping>>({});
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [sectionBalances, setSectionBalances] = useState<SectionBalance[]>([]);
 
@@ -43,6 +41,7 @@ export default function Home() {
             return;
           }
         }
+
         // Multi-section bank export format (N/C: / Name: sections)
         if (isMultiSectionFormat(wb.buffer, sheetName)) {
           const { transactions: txns, sectionBalances: balances } = parseMultiSectionSheet(wb.buffer, sheetName);
@@ -51,24 +50,16 @@ export default function Home() {
           setAppState("dashboard");
           return;
         }
+
         // Fall through to transaction flow
         const { headers, rows } = parseTransactionSheet(wb.buffer, sheetName);
-        const detected = detectMapping(headers);
-        const hasAmount = !!detected.amount;
-        const hasDebitCredit = !!(detected.debit && detected.credit);
-        const amountReady = hasAmount || hasDebitCredit;
-        const allMapped = detected.date && detected.description && amountReady;
+        const detected = detectMapping(headers, rows);
 
         setHeaders(headers);
         setRows(rows);
-        setInitialMapping(detected);
-
-        if (allMapped) {
-          setTransactions(mapRows(rows, detected as ColumnMapping));
-          setAppState("dashboard");
-        } else {
-          setAppState("mapping");
-        }
+        setTransactions(mapRows(rows, detected));
+        setAppState("dashboard");
+        return;
       } catch (e) {
         setError(e instanceof Error ? e.message : "An unknown error occurred.");
         setAppState("idle");
@@ -101,15 +92,6 @@ export default function Home() {
     }
   }, [handleSheetSelected]);
 
-  // ── Column mapping confirmed ─────────────────────────────────────────────
-  const handleMappingConfirm = useCallback(
-    (mapping: ColumnMapping) => {
-      setTransactions(mapRows(rows, mapping));
-      setAppState("dashboard");
-    },
-    [rows]
-  );
-
   // ── Full reset ───────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
     setAppState("idle");
@@ -118,7 +100,6 @@ export default function Home() {
     setWorkbook(null);
     setHeaders([]);
     setRows([]);
-    setInitialMapping({});
     setTransactions([]);
     setSectionBalances([]);
     setBudgetData(null);
@@ -255,22 +236,6 @@ export default function Home() {
                 {error}
               </div>
             )}
-          </div>
-        )}
-
-        {/* ── COLUMN MAPPING ────────────────────────────────────────────── */}
-        {appState === "mapping" && (
-          <div className="flex flex-col items-center gap-6">
-            <div className="text-center">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Map Your Columns</h1>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{fileName}</p>
-            </div>
-            <ColumnMapper
-              headers={headers}
-              initialMapping={initialMapping}
-              onConfirm={handleMappingConfirm}
-              onBack={handleReset}
-            />
           </div>
         )}
 
