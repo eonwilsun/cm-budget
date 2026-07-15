@@ -87,7 +87,11 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                 <th
                   key={col.key}
                   className={`text-right font-semibold px-2 py-2 whitespace-nowrap border-l border-gray-600 ${
-                    col.isBudget ? "bg-blue-900 dark:bg-blue-950" : col.isTotal ? "bg-gray-700 dark:bg-gray-800" : ""
+                    col.isBudget
+                      ? "bg-blue-900 dark:bg-blue-950"
+                      : col.isTotal
+                        ? "bg-gray-700 dark:bg-gray-800"
+                        : "bg-gray-800 dark:bg-gray-900"
                   }`}
                   style={{ minWidth: 88 }}
                 >

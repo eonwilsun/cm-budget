@@ -42,6 +42,13 @@ function headingKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function fmtCash(n: number): string {
+  return new Intl.NumberFormat("en-GB", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
 function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
   const sharedBudget = getSharedBudgetConfig();
   const budgetCol = budget.columns.find((c) => c.isBudget);
@@ -682,7 +689,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
                       <tr key={`${item.code}-${item.name}-${idx}`} className="border-b border-gray-100 dark:border-gray-800">
                         <td className="px-3 py-2 text-gray-900 dark:text-white font-mono">{item.code}</td>
                         <td className="px-3 py-2 text-gray-900 dark:text-white">{item.name}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white">£{item.balance.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white">£{fmtCash(item.balance)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -690,7 +697,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
                     <tr className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                       <td colSpan={2} className="px-3 py-3 font-bold text-gray-900 dark:text-white">Total Cash at Bank (Uploaded)</td>
                       <td className="px-3 py-3 text-right font-bold text-gray-900 dark:text-white">
-                        £{cashAtBankItems.reduce((sum, item) => sum + item.balance, 0).toFixed(2)}
+                        £{fmtCash(cashAtBankItems.reduce((sum, item) => sum + item.balance, 0))}
                       </td>
                     </tr>
                   </tfoot>

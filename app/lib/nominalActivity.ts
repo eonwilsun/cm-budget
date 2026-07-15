@@ -139,7 +139,9 @@ export function buildBudgetFromNominalTransactions(
           });
         }
 
-        const rowKey = `${sectionType}::${subsectionName}::${entry.code}::${itemName}::${entry.accountToken.toUpperCase()}`;
+        const rowKey = sectionType === "income"
+          ? `${sectionType}::${subsectionName}::${entry.code}::${itemName}`
+          : `${sectionType}::${subsectionName}::${entry.code}::${itemName}::${entry.accountToken.toUpperCase()}`;
         let row = itemsByKey.get(rowKey);
         if (!row) {
           row = {
