@@ -174,7 +174,7 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
             <div ref={pieChartRef}>
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
-                  <Pie data={sectionData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={100} paddingAngle={1}>
+                  <Pie data={sectionData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} paddingAngle={1}>
                     {sectionData.map((_, i) => (
                       <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
                     ))}
@@ -182,6 +182,18 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
                   <Tooltip formatter={(v, _name, item) => [fmt(Number(v)), item.payload.name]} />
                 </PieChart>
               </ResponsiveContainer>
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {sectionData.map((item, index) => (
+                  <div key={item.name} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-sm"
+                      style={{ backgroundColor: SECTION_COLORS[index % SECTION_COLORS.length] }}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                    <span className="shrink-0 font-medium text-gray-500 dark:text-gray-400">{fmt(item.value)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

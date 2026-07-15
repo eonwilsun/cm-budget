@@ -218,7 +218,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
 
   return (
     <div className="space-y-0">
-      <div className="sticky top-14 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 mb-6">
+      <div className="sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 mb-6 shadow-sm">
         <div className="px-4 sm:px-6 lg:px-8 pt-3 pb-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
