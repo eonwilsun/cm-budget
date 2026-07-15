@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import type { ParsedBudget } from "../types";
 import BudgetDashboard from "./BudgetDashboard";
 import BudgetTable, { sectionAnchorId } from "./BudgetTable";
 import { downloadAsPNG, downloadAsPDF } from "../lib/exportUtils";
 import { getSharedBudgetConfig } from "../lib/sharedBudget";
+import { parseAmount, parseTransactionSheet, readWorkbook } from "../lib/parseExcel";
+import { getPdfJs } from "../lib/pdfText";
 
 interface BudgetViewProps {
   budget: ParsedBudget;
@@ -17,6 +19,12 @@ interface BudgetViewProps {
 }
 
 type Tab = "dashboard" | "report";
+
+interface CashAtBankItem {
+  code: string;
+  name: string;
+  balance: number;
+}
 
 function allSectionNames(budget: ParsedBudget): Set<string> {
   return new Set(budget.rows.filter((r) => r.rowType === "section").map((r) => r.sectionName || r.name));
@@ -192,7 +200,9 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   const budgetWithSharedBreakdown = useMemo(() => applySharedBreakdownToBudget(budget), [budget]);
   const [activeTab, setActiveTab] = useState<Tab>("report");
   const [editMode, setEditMode] = useState(false);
-  const [tableStickyTop, setTableStickyTop] = useState("12rem");
+  const [cashAtBankItems, setCashAtBankItems] = useState<CashAtBankItem[]>([]);
+  const [cashDropActive, setCashDropActive] = useState(false);
+  const [cashUploadLoading, setCashUploadLoading] = useState(false);
 
   // Collapse state — all sections/subsections collapsed by default
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => allSectionNames(budget));
@@ -204,28 +214,123 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   // Refs for capture
   const dashboardRef = useRef<HTMLDivElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
-  const stickyControlsRef = useRef<HTMLDivElement>(null);
+  const cashFileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const updateStickyTop = () => {
-      const controlsHeight = stickyControlsRef.current?.offsetHeight ?? 0;
-      const topNavHeight = 56;
-      setTableStickyTop(`${topNavHeight + controlsHeight}px`);
-    };
-
-    updateStickyTop();
-    window.addEventListener("resize", updateStickyTop);
-
-    const observer = new ResizeObserver(updateStickyTop);
-    if (stickyControlsRef.current) {
-      observer.observe(stickyControlsRef.current);
+  const getRowValue = (row: Record<string, unknown>, keys: string[]): unknown => {
+    const lowerKeys = Object.keys(row).map((k) => k.toLowerCase());
+    for (const target of keys) {
+      const idx = lowerKeys.findIndex((key) => key.includes(target));
+      if (idx !== -1) {
+        return Object.values(row)[idx];
+      }
     }
 
-    return () => {
-      window.removeEventListener("resize", updateStickyTop);
-      observer.disconnect();
-    };
-  }, []);
+    if (typeof row.rawText === "string") {
+      return row.rawText;
+    }
+
+    return "";
+  };
+
+  const extractPdfTextLines = (textContent: any) => {
+    const lines = new Map<number, string[]>();
+    textContent.items.forEach((item: any) => {
+      const y = item.transform?.[5] ? Math.round(item.transform[5]) : 0;
+      const line = (lines.get(y) ?? []).concat(item.str);
+      lines.set(y, line);
+    });
+
+    return Array.from(lines.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([, items]) => items.join(" ").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+  };
+
+  const parseCashAtBankSummaryRows = async (file: File): Promise<Record<string, unknown>[]> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfjsLib = await getPdfJs();
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+    const pdf = await loadingTask.promise;
+
+    const rows: Record<string, unknown>[] = [];
+
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      const pageLines = extractPdfTextLines(textContent);
+
+      for (const line of pageLines) {
+        const normalizedLine = line.trim();
+        if (/^(report run|page:|to period|cash at bank|n\/c|name|balance|totals?:)$/i.test(normalizedLine)) {
+          continue;
+        }
+
+        const rowMatch = normalizedLine.match(/^(\d{3,6})\s+(.+?)\s+([0-9,]+(?:\.\d{2})?)$/);
+        if (!rowMatch) {
+          continue;
+        }
+
+        rows.push({
+          code: rowMatch[1].trim(),
+          name: rowMatch[2].trim(),
+          balance: parseAmount(rowMatch[3]),
+        });
+      }
+    }
+
+    return rows;
+  };
+
+  const parseCashRowsFromFile = async (file: File): Promise<Record<string, unknown>[]> => {
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith(".pdf")) {
+      return parseCashAtBankSummaryRows(file);
+    }
+
+    const workbook = await readWorkbook(file);
+    const sheetName = workbook.sheetNames[0];
+    const { rows } = parseTransactionSheet(workbook.buffer, sheetName);
+    return rows;
+  };
+
+  const buildCashItems = (rows: Record<string, unknown>[]): CashAtBankItem[] => {
+    return rows
+      .map((row) => {
+        const code = String(getRowValue(row, ["n/c", "code", "account number", "ref", "id"]) ?? "").trim();
+        const name = String(getRowValue(row, ["name", "account", "description", "details", "item"]) ?? "").trim();
+        const balance = parseAmount(getRowValue(row, ["balance", "amount", "value", "total"]));
+        if (!name && !code) return null;
+        if (balance === 0) return null;
+
+        return { code, name, balance };
+      })
+      .filter((item): item is CashAtBankItem => item !== null);
+  };
+
+  const handleCashFileUpload = async (file: File) => {
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith(".xlsx") && !lower.endsWith(".xls") && !lower.endsWith(".pdf")) {
+      window.alert("Please upload an Excel or PDF document.");
+      return;
+    }
+
+    setCashUploadLoading(true);
+    try {
+      const rows = await parseCashRowsFromFile(file);
+      const items = buildCashItems(rows);
+      if (items.length === 0) {
+        window.alert("No cash-at-bank rows found in this file.");
+        return;
+      }
+
+      setCashAtBankItems((prev) => [...prev, ...items]);
+    } catch (error) {
+      console.error("Could not append cash-at-bank file", error);
+      window.alert("Could not append cash-at-bank file. Please check the format.");
+    } finally {
+      setCashUploadLoading(false);
+    }
+  };
 
   // ── Section / subsection toggle helpers ──────────────────────────────────
   const toggleSection = useCallback((name: string) => {
@@ -401,7 +506,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
 
   return (
     <div className="space-y-0">
-      <div ref={stickyControlsRef} className="sticky top-14 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 mb-6 shadow-sm">
+      <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 mb-6 shadow-sm">
         <div className="px-4 sm:px-6 lg:px-8 pt-3 pb-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -557,8 +662,101 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
               editable={isSavedBudget && editMode}
               onRowTextChange={handleRowTextChange}
               onRowValueChange={handleRowValueChange}
-              stickyTop={tableStickyTop}
+              stickyTop="0"
             />
+          </div>
+
+          <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+            <div
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setCashDropActive(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setCashDropActive(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setCashDropActive(false);
+              }}
+              onDrop={async (e) => {
+                e.preventDefault();
+                setCashDropActive(false);
+                const droppedFile = e.dataTransfer.files?.[0];
+                if (droppedFile) {
+                  await handleCashFileUpload(droppedFile);
+                }
+              }}
+              onClick={() => cashFileInputRef.current?.click()}
+              className={`mx-auto w-full max-w-2xl rounded-3xl border-2 border-dashed p-8 text-center transition cursor-pointer ${
+                cashDropActive
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-950/40"
+                  : "border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-900"
+              }`}
+            >
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-3xl text-blue-600 dark:bg-blue-900 dark:text-blue-300">
+                📄
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Drop your cash in bank document here</h3>
+              <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">or click to browse</p>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  cashFileInputRef.current?.click();
+                }}
+                disabled={cashUploadLoading}
+                className="mt-5 rounded-xl bg-blue-600 px-6 py-3 text-lg font-semibold text-white hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                {cashUploadLoading ? "Adding..." : "Choose File"}
+              </button>
+              <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Supports .xlsx, .xls, and .pdf files</p>
+            </div>
+            <input
+              ref={cashFileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.pdf"
+              className="hidden"
+              onChange={async (e) => {
+                const selectedFile = e.target.files?.[0];
+                if (selectedFile) {
+                  await handleCashFileUpload(selectedFile);
+                }
+                e.currentTarget.value = "";
+              }}
+            />
+
+            {cashAtBankItems.length > 0 && (
+              <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">Code</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">Account</th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-700 dark:text-gray-300">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cashAtBankItems.map((item, idx) => (
+                      <tr key={`${item.code}-${item.name}-${idx}`} className="border-b border-gray-100 dark:border-gray-800">
+                        <td className="px-3 py-2 text-gray-900 dark:text-white font-mono">{item.code}</td>
+                        <td className="px-3 py-2 text-gray-900 dark:text-white">{item.name}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white">£{item.balance.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                      <td colSpan={2} className="px-3 py-3 font-bold text-gray-900 dark:text-white">Total Cash at Bank (Uploaded)</td>
+                      <td className="px-3 py-3 text-right font-bold text-gray-900 dark:text-white">
+                        £{cashAtBankItems.reduce((sum, item) => sum + item.balance, 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
         </section>
       )}
