@@ -221,19 +221,9 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                           onChange={(e) => onRowTextChange?.(idx, "name", e.target.value)}
                           className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-xs text-gray-700 dark:text-gray-200"
                         />
-                        <input
-                          type="text"
-                          value={row.notes}
-                          placeholder="Notes"
-                          onChange={(e) => onRowTextChange?.(idx, "notes", e.target.value)}
-                          className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-[11px] text-gray-500 dark:text-gray-400"
-                        />
                       </div>
                     ) : (
-                      <>
-                        {row.name}
-                        {row.notes && <span className="ml-2 text-gray-400 dark:text-gray-500 italic">{row.notes}</span>}
-                      </>
+                      row.name
                     )}
                   </td>
                   {valueCols.map((col) => {
