@@ -288,9 +288,6 @@ export function detectMapping(headers: string[], rows: Record<string, unknown>[]
     amountHeader = findBestNumericColumn(["amount", "value", "sum", "total", "transaction amount"]) ?? "";
   }
 
-  if (!dateHeader) {
-    throw new Error("Could not automatically detect the date column. Please verify the sheet contains a date column.");
-  }
   if (!descriptionHeader) {
     throw new Error("Could not automatically detect the description column. Please verify the sheet contains a transaction description column.");
   }
@@ -299,7 +296,7 @@ export function detectMapping(headers: string[], rows: Record<string, unknown>[]
   }
 
   return {
-    date: dateHeader,
+    date: dateHeader ?? "",
     description: descriptionHeader,
     category: categoryHeader,
     account: accountHeader,
@@ -310,6 +307,13 @@ export function detectMapping(headers: string[], rows: Record<string, unknown>[]
 }
 
 /** Map parsed rows to Transaction objects, applying all filters. */
+const getCurrentMonthFallbackDate = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}-01`;
+};
+
 export function mapRows(
   rows: Record<string, unknown>[],
   mapping: ColumnMapping
@@ -330,7 +334,9 @@ export function mapRows(
         amount = parseAmount(row[mapping.amount]);
       }
 
-      const dateStr = parseDateString(row[mapping.date]);
+      const dateStr = mapping.date
+        ? parseDateString(row[mapping.date])
+        : getCurrentMonthFallbackDate();
 
       return {
         date: dateStr,
