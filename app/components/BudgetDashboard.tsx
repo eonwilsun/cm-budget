@@ -41,10 +41,12 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const monthCols = budget.columns.filter((c) => c.monthIndex !== null);
   const budgetCol = budget.columns.find((c) => c.isBudget);
   const monthKeys = monthCols.map((c) => c.key);
+  const allItems = budget.rows.filter((r) => r.rowType === "item");
 
   const incomeItems = budget.rows.filter((r) => r.rowType === "item" && r.sectionType === "income");
   const expendItems = budget.rows.filter((r) => r.rowType === "item" && r.sectionType === "expenditure");
 
+  const totalBudgetAll = budgetCol ? sumValues(allItems, [budgetCol.key]) : 0;
   const totalBudgetIncome = budgetCol ? sumValues(incomeItems, [budgetCol.key]) : 0;
   const totalBudgetExpend = budgetCol ? sumValues(expendItems, [budgetCol.key]) : 0;
   const totalActualIncome = sumValues(incomeItems, monthKeys);
@@ -53,8 +55,8 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const netActual = totalActualIncome - totalActualExpend;
 
   const summaryCards = [
-    { label: "Budget Income",     value: fmt(totalBudgetIncome), color: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-950",     border: "border-blue-200 dark:border-blue-800" },
-    { label: "Budget Expenditure",value: fmt(totalBudgetExpend), color: "text-red-600 dark:text-red-400",      bg: "bg-red-50 dark:bg-red-950",       border: "border-red-200 dark:border-red-800" },
+    { label: "Budget 2026",       value: fmt(totalBudgetAll),    color: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-950",     border: "border-blue-200 dark:border-blue-800" },
+    { label: "Budget Expenditure",value: fmt(totalActualExpend), color: "text-red-600 dark:text-red-400",      bg: "bg-red-50 dark:bg-red-950",       border: "border-red-200 dark:border-red-800" },
     { label: "Budget Net",        value: fmt(netBudget),         color: netBudget >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400", bg: netBudget >= 0 ? "bg-emerald-50 dark:bg-emerald-950" : "bg-orange-50 dark:bg-orange-950", border: netBudget >= 0 ? "border-emerald-200 dark:border-emerald-800" : "border-orange-200 dark:border-orange-800" },
     { label: "Actual Income",     value: fmt(totalActualIncome), color: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-950",     border: "border-blue-200 dark:border-blue-800" },
     { label: "Actual Expenditure",value: fmt(totalActualExpend), color: "text-red-600 dark:text-red-400",      bg: "bg-red-50 dark:bg-red-950",       border: "border-red-200 dark:border-red-800" },
