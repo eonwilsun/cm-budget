@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import type { ParsedBudget, BudgetRow } from "../types";
 import { downloadAsJPEG, downloadAsPNG } from "../lib/exportUtils";
+import { getSharedBudgetConfig } from "../lib/sharedBudget";
 
 const SECTION_COLORS = [
   "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
@@ -34,6 +35,7 @@ function sumValues(rows: BudgetRow[], colKeys: string[]): number {
 }
 
 export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
+  const sharedBudget = getSharedBudgetConfig();
   const [exporting, setExporting] = useState<string | null>(null);
   const monthlyChartRef = useRef<HTMLDivElement>(null);
   const pieChartRef = useRef<HTMLDivElement>(null);
@@ -51,11 +53,12 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const totalBudgetExpend = budgetCol ? sumValues(expendItems, [budgetCol.key]) : 0;
   const totalActualIncome = sumValues(incomeItems, monthKeys);
   const totalActualExpend = sumValues(expendItems, monthKeys);
-  const netBudget = totalBudgetAll - totalActualExpend;
+  const budgetTotalForCards = sharedBudget.totalBudget || totalBudgetAll;
+  const netBudget = budgetTotalForCards - totalActualExpend;
   const netActual = totalActualIncome - totalActualExpend;
 
   const summaryCards = [
-    { label: "Budget 2026",       value: fmt(totalBudgetAll),    color: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-950",     border: "border-blue-200 dark:border-blue-800" },
+    { label: `Budget ${sharedBudget.year}`, value: fmt(budgetTotalForCards), color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950", border: "border-blue-200 dark:border-blue-800" },
     { label: "Budget Expenditure",value: fmt(totalActualExpend), color: "text-red-600 dark:text-red-400",      bg: "bg-red-50 dark:bg-red-950",       border: "border-red-200 dark:border-red-800" },
     { label: "Budget Net",        value: fmt(netBudget),         color: netBudget >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400", bg: netBudget >= 0 ? "bg-emerald-50 dark:bg-emerald-950" : "bg-orange-50 dark:bg-orange-950", border: netBudget >= 0 ? "border-emerald-200 dark:border-emerald-800" : "border-orange-200 dark:border-orange-800" },
     { label: "Actual Income",     value: fmt(totalActualIncome), color: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-950",     border: "border-blue-200 dark:border-blue-800" },

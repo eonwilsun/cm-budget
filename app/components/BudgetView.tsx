@@ -5,6 +5,7 @@ import type { ParsedBudget } from "../types";
 import BudgetDashboard from "./BudgetDashboard";
 import BudgetTable, { sectionAnchorId } from "./BudgetTable";
 import { downloadAsPNG, downloadAsPDF } from "../lib/exportUtils";
+import { getSharedBudgetConfig } from "../lib/sharedBudget";
 
 interface BudgetViewProps {
   budget: ParsedBudget;
@@ -30,6 +31,7 @@ function allSubsectionNames(budget: ParsedBudget): Set<string> {
 }
 
 export default function BudgetView({ budget, fileName, onReset, isSavedBudget = false, onBudgetChange, onSaveAsSavedBudget }: BudgetViewProps) {
+  const sharedBudget = getSharedBudgetConfig();
   const [activeTab, setActiveTab] = useState<Tab>("report");
   const [editMode, setEditMode] = useState(false);
 
@@ -218,7 +220,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
 
   return (
     <div className="space-y-0">
-      <div className="sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 mb-6 shadow-sm">
+      <div className="sticky top-14 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 mb-6 shadow-sm">
         <div className="px-4 sm:px-6 lg:px-8 pt-3 pb-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -355,6 +357,31 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
       {/* ── REPORT TABLE tab ──────────────────────────────────────────────── */}
       {activeTab === "report" && (
         <section id="budget-report-section">
+          {sharedBudget.breakdown.length > 0 && (
+            <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/40">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                  Shared Budget Breakdown ({sharedBudget.year})
+                </h3>
+                <span className="text-sm font-bold text-blue-800 dark:text-blue-300">
+                  {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(sharedBudget.totalBudget)}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                {sharedBudget.breakdown.map((item) => (
+                  <div key={item.heading} className="flex items-center justify-between rounded bg-white/80 px-2 py-1 text-xs dark:bg-blue-950/50">
+                    <span className="truncate text-blue-900 dark:text-blue-200">{item.heading}</span>
+                    <span className="ml-2 font-medium text-blue-800 dark:text-blue-300">
+                      {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(item.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-blue-700 dark:text-blue-400">
+                Shared values are loaded from app/config/sharedBudget.json so everyone sees the same annual budget and heading breakdown.
+              </p>
+            </div>
+          )}
           {/* Collapse hint */}
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
             Click a section or subsection header row to expand / collapse it. Use <strong>Expand All / Collapse All</strong> in the nav bar above.
@@ -374,6 +401,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
               editable={isSavedBudget && editMode}
               onRowTextChange={handleRowTextChange}
               onRowValueChange={handleRowValueChange}
+              stickyTop="12rem"
             />
           </div>
         </section>

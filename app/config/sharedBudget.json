@@ -1,0 +1,15 @@
+{
+  "year": 2026,
+  "totalBudget": 269295,
+  "breakdown": [
+    { "heading": "Accountancy/Company Fees", "amount": 3550 },
+    { "heading": "CCTV", "amount": 250 },
+    { "heading": "Cleaning", "amount": 88555 },
+    { "heading": "Door Entry", "amount": 800 },
+    { "heading": "Fire", "amount": 1450 },
+    { "heading": "Insurance Expense", "amount": 50000 },
+    { "heading": "Lift Maintenance", "amount": 16000 },
+    { "heading": "Professional & Legal Fees", "amount": 12000 },
+    { "heading": "Utilities", "amount": 7000 }
+  ]
+}
