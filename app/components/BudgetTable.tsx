@@ -9,6 +9,9 @@ interface BudgetTableProps {
   expandedSubsections: Set<string>;
   onToggleSection: (name: string) => void;
   onToggleSubsection: (sectionName: string, subsName: string) => void;
+  editable?: boolean;
+  onRowTextChange?: (rowIndex: number, field: "code" | "name" | "notes", value: string) => void;
+  onRowValueChange?: (rowIndex: number, columnKey: string, value: number | null) => void;
 }
 
 const SECTION_BG: Record<string, string> = {
@@ -40,7 +43,7 @@ export function sectionAnchorId(name: string) {
 }
 
 const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
-  ({ budget, expandedSections, expandedSubsections, onToggleSection, onToggleSubsection }, ref) => {
+  ({ budget, expandedSections, expandedSubsections, onToggleSection, onToggleSubsection, editable = false, onRowTextChange, onRowValueChange }, ref) => {
     const valueCols: BudgetColumn[] = budget.columns.filter(
       (c) => c.isBudget || c.monthIndex !== null || c.isTotal
     );
@@ -194,14 +197,43 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                     className={`px-2 py-1 text-gray-500 dark:text-gray-400 ${isEven ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-850"}`}
                     style={{ position: "sticky", left: 0, zIndex: 10, width: codeW }}
                   >
-                    {row.code}
+                    {editable ? (
+                      <input
+                        type="text"
+                        value={row.code}
+                        onChange={(e) => onRowTextChange?.(idx, "code", e.target.value)}
+                        className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-1.5 py-1 text-xs text-gray-700 dark:text-gray-200"
+                      />
+                    ) : (
+                      row.code
+                    )}
                   </td>
                   <td
                     className={`px-3 py-1 pl-10 text-gray-800 dark:text-gray-200 ${isEven ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-850"}`}
                     style={{ position: "sticky", left: codeW, zIndex: 10 }}
                   >
-                    {row.name}
-                    {row.notes && <span className="ml-2 text-gray-400 dark:text-gray-500 italic">{row.notes}</span>}
+                    {editable ? (
+                      <div className="space-y-1">
+                        <input
+                          type="text"
+                          value={row.name}
+                          onChange={(e) => onRowTextChange?.(idx, "name", e.target.value)}
+                          className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-xs text-gray-700 dark:text-gray-200"
+                        />
+                        <input
+                          type="text"
+                          value={row.notes}
+                          placeholder="Notes"
+                          onChange={(e) => onRowTextChange?.(idx, "notes", e.target.value)}
+                          className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-[11px] text-gray-500 dark:text-gray-400"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        {row.name}
+                        {row.notes && <span className="ml-2 text-gray-400 dark:text-gray-500 italic">{row.notes}</span>}
+                      </>
+                    )}
                   </td>
                   {valueCols.map((col) => {
                     const v = row.values[col.key] ?? null;
@@ -210,7 +242,20 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                         key={col.key}
                         className={`px-2 py-1 text-right tabular-nums ${numClass(v)} ${col.isBudget ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}
                       >
-                        {fmt(v)}
+                        {editable ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={v ?? ""}
+                            onChange={(e) => {
+                              const raw = e.target.value.trim();
+                              onRowValueChange?.(idx, col.key, raw === "" ? null : Number(raw));
+                            }}
+                            className="w-20 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-1.5 py-1 text-right text-xs text-gray-700 dark:text-gray-200"
+                          />
+                        ) : (
+                          fmt(v)
+                        )}
                       </td>
                     );
                   })}

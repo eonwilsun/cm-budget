@@ -10,6 +10,7 @@ interface BudgetViewProps {
   budget: ParsedBudget;
   fileName: string;
   onReset: () => void;
+  onBudgetChange?: (budget: ParsedBudget) => void;
 }
 
 type Tab = "dashboard" | "report";
@@ -26,8 +27,9 @@ function allSubsectionNames(budget: ParsedBudget): Set<string> {
   );
 }
 
-export default function BudgetView({ budget, fileName, onReset }: BudgetViewProps) {
+export default function BudgetView({ budget, fileName, onReset, onBudgetChange }: BudgetViewProps) {
   const [activeTab, setActiveTab] = useState<Tab>("report");
+  const [editMode, setEditMode] = useState(false);
 
   // Collapse state — all sections/subsections collapsed by default
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => allSectionNames(budget));
@@ -152,6 +154,30 @@ export default function BudgetView({ budget, fileName, onReset }: BudgetViewProp
       }
     }, "rep-pdf");
 
+  const handleRowTextChange = useCallback(
+    (rowIndex: number, field: "code" | "name" | "notes", value: string) => {
+      if (!onBudgetChange) return;
+      const nextRows = budget.rows.map((row, index) => (
+        index === rowIndex ? { ...row, [field]: value } : row
+      ));
+      onBudgetChange({ ...budget, rows: nextRows });
+    },
+    [budget, onBudgetChange]
+  );
+
+  const handleRowValueChange = useCallback(
+    (rowIndex: number, columnKey: string, value: number | null) => {
+      if (!onBudgetChange) return;
+      const nextRows = budget.rows.map((row, index) => (
+        index === rowIndex
+          ? { ...row, values: { ...row.values, [columnKey]: value } }
+          : row
+      ));
+      onBudgetChange({ ...budget, rows: nextRows });
+    },
+    [budget, onBudgetChange]
+  );
+
   // ── UI helpers ────────────────────────────────────────────────────────────
   function NavBtn({
     label, onClick, color = "gray",
@@ -196,13 +222,31 @@ export default function BudgetView({ budget, fileName, onReset }: BudgetViewProp
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             {fileName} · {budget.sheetName} · {budget.rows.filter((r) => r.rowType === "item").length} line items
           </p>
+          {onBudgetChange && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+              Saved locally in this browser. Manual edits update the saved budget automatically.
+            </p>
+          )}
         </div>
-        <button
-          onClick={onReset}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"
-        >
-          ↑ Upload New File
-        </button>
+        <div className="flex items-center gap-2">
+          {onBudgetChange && (
+            <button
+              onClick={() => {
+                setActiveTab("report");
+                setEditMode((prev) => !prev);
+              }}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 ${editMode ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}
+            >
+              {editMode ? "Done Editing" : "Edit Saved Budget"}
+            </button>
+          )}
+          <button
+            onClick={onReset}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"
+          >
+            ↑ Upload New File
+          </button>
+        </div>
       </div>
 
       {/* ── Sticky navigation bar ─────────────────────────────────────────── */}
@@ -295,6 +339,11 @@ export default function BudgetView({ budget, fileName, onReset }: BudgetViewProp
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
             Click a section or subsection header row to expand / collapse it. Use <strong>Expand All / Collapse All</strong> in the nav bar above.
           </p>
+          {editMode && (
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              Editing mode is on. Change names, codes, or monthly figures here and the saved budget will be updated automatically.
+            </div>
+          )}
           <div ref={reportRef}>
             <BudgetTable
               budget={budget}
@@ -302,6 +351,9 @@ export default function BudgetView({ budget, fileName, onReset }: BudgetViewProp
               expandedSubsections={expandedSubsections}
               onToggleSection={toggleSection}
               onToggleSubsection={toggleSubsection}
+              editable={editMode}
+              onRowTextChange={handleRowTextChange}
+              onRowValueChange={handleRowValueChange}
             />
           </div>
         </section>

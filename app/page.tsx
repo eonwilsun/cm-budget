@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import type { AppState, Transaction, WorkbookMeta, ParsedBudget, SectionBalance } from "./types";
 import { readWorkbook, parseTransactionSheet, detectMapping, mapRows, isMultiSectionFormat, parseMultiSectionSheet } from "./lib/parseExcel";
 import { isBudgetSheet, parseBudgetSheet } from "./lib/parseBudget";
@@ -9,6 +9,8 @@ import FileUpload from "./components/FileUpload";
 import SheetPicker from "./components/SheetPicker";
 import Dashboard from "./components/Dashboard";
 import BudgetView from "./components/BudgetView";
+
+const SAVED_BUDGET_KEY = "cm-budget.saved-budget";
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>("idle");
@@ -27,6 +29,37 @@ export default function Home() {
 
   // Budget flow
   const [budgetData, setBudgetData] = useState<ParsedBudget | null>(null);
+  const [savedBudget, setSavedBudget] = useState<ParsedBudget | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SAVED_BUDGET_KEY);
+      if (raw) {
+        setSavedBudget(JSON.parse(raw) as ParsedBudget);
+      }
+    } catch {
+      window.localStorage.removeItem(SAVED_BUDGET_KEY);
+    }
+  }, []);
+
+  const persistBudget = useCallback((budget: ParsedBudget) => {
+    setBudgetData(budget);
+    setSavedBudget(budget);
+    window.localStorage.setItem(SAVED_BUDGET_KEY, JSON.stringify(budget));
+  }, []);
+
+  const openSavedBudget = useCallback(() => {
+    if (!savedBudget) return;
+    setError(null);
+    setBudgetData(savedBudget);
+    setFileName(`Saved Budget · ${savedBudget.sheetName}`);
+    setAppState("budget");
+  }, [savedBudget]);
+
+  const clearSavedBudget = useCallback(() => {
+    window.localStorage.removeItem(SAVED_BUDGET_KEY);
+    setSavedBudget(null);
+  }, []);
 
   // ── After a sheet is chosen, decide which flow to use ───────────────────
   const handleSheetSelected = useCallback(
@@ -37,7 +70,7 @@ export default function Home() {
         if (isBudgetSheet(wb.buffer, sheetName)) {
           const parsed = parseBudgetSheet(wb.buffer, sheetName);
           if (parsed && parsed.rows.length > 0) {
-            setBudgetData(parsed);
+            persistBudget(parsed);
             setAppState("budget");
             return;
           }
@@ -48,7 +81,7 @@ export default function Home() {
           const { transactions: txns, sectionBalances: balances } = parseMultiSectionSheet(wb.buffer, sheetName);
           setTransactions(txns);
           setSectionBalances(balances);
-          setBudgetData(buildBudgetFromNominalTransactions(txns, sheetName));
+          persistBudget(buildBudgetFromNominalTransactions(txns, sheetName));
           setAppState("budget");
           return;
         }
@@ -80,7 +113,7 @@ export default function Home() {
     try {
       if (file.name.toLowerCase().endsWith(".pdf")) {
         const parsed = await parseNominalActivityPdf(file);
-        setBudgetData(parsed);
+        persistBudget(parsed);
         setAppState("budget");
         setLoading(false);
         return;
@@ -126,14 +159,24 @@ export default function Home() {
             <span className="text-2xl">💰</span>
             <span className="font-bold text-gray-900 dark:text-white text-lg">CM Budget</span>
           </div>
-          {showNewUploadBtn && (
-            <button
-              onClick={handleReset}
-              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              New Upload
-            </button>
-          )}
+          <div className="flex items-center gap-4">
+            {savedBudget && appState === "idle" && (
+              <button
+                onClick={openSavedBudget}
+                className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                Saved Budget
+              </button>
+            )}
+            {showNewUploadBtn && (
+              <button
+                onClick={handleReset}
+                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              >
+                New Upload
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -176,6 +219,38 @@ export default function Home() {
               </div>
             ) : (
               <FileUpload onFile={handleFile} />
+            )}
+
+            {savedBudget && !loading && (
+              <div className="w-full max-w-xl rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 dark:border-blue-800 dark:bg-blue-950">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                      Saved Budget
+                    </p>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                      Best place: keep your manual budget here. Open it, edit the figures directly, and this browser will reuse it next time without another upload.
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      {savedBudget.sheetName}{savedBudget.year ? ` · ${savedBudget.year}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={openSavedBudget}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    >
+                      Open Saved Budget
+                    </button>
+                    <button
+                      onClick={clearSavedBudget}
+                      className="rounded-lg border border-blue-300 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-white dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {error && (
@@ -256,7 +331,7 @@ export default function Home() {
 
         {/* ── BUDGET REPORT ─────────────────────────────────────────────── */}
         {appState === "budget" && budgetData && (
-          <BudgetView budget={budgetData} fileName={fileName} onReset={handleReset} />
+          <BudgetView budget={budgetData} fileName={fileName} onReset={handleReset} onBudgetChange={persistBudget} />
         )}
       </main>
 
