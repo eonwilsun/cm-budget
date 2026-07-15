@@ -46,6 +46,15 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
     amountByHeading.set(headingKey(item.heading), item.amount);
   }
 
+  const subsectionDirectAmounts = new Map<string, number>();
+  for (const row of budget.rows) {
+    if (row.rowType !== "subsection") continue;
+    const direct = amountByHeading.get(headingKey(row.name));
+    if (direct !== undefined) {
+      subsectionDirectAmounts.set(`${row.sectionName}::${row.name}`, direct);
+    }
+  }
+
   const rowsWithItemBudgets = budget.rows.map((row) => {
     if (row.rowType !== "item") {
       return row;
@@ -66,15 +75,54 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
   });
 
   const itemRows = rowsWithItemBudgets.filter((row) => row.rowType === "item");
-  const sumBudget = (predicate: (row: typeof itemRows[number]) => boolean): number => {
-    return itemRows.reduce((sum, row) => {
-      if (!predicate(row)) return sum;
-      return sum + (row.values[budgetCol.key] ?? 0);
+
+  const subtotalFromItems = (sectionName: string, subsectionName: string): number => {
+    return itemRows.reduce((sum, item) => {
+      if (item.sectionName !== sectionName || item.subsectionName !== subsectionName) return sum;
+      return sum + (item.values[budgetCol.key] ?? 0);
     }, 0);
   };
 
-  const incomeBudgetTotal = sumBudget((row) => row.sectionType === "income");
-  const expenditureBudgetTotal = sumBudget((row) => row.sectionType === "expenditure");
+  const sectionBudgetTotal = (sectionName: string): number => {
+    let total = 0;
+
+    for (const item of itemRows) {
+      if (item.sectionName !== sectionName) continue;
+
+      if (item.subsectionName) {
+        const subsectionKey = `${item.sectionName}::${item.subsectionName}`;
+        if (subsectionDirectAmounts.has(subsectionKey)) {
+          continue;
+        }
+      }
+
+      total += item.values[budgetCol.key] ?? 0;
+    }
+
+    for (const [subsectionKey, amount] of subsectionDirectAmounts.entries()) {
+      const [subSectionName] = subsectionKey.split("::");
+      if (subSectionName === sectionName) {
+        total += amount;
+      }
+    }
+
+    return total;
+  };
+
+  const incomeSectionNames = new Set(
+    budget.rows
+      .filter((row) => row.rowType === "section" && row.sectionType === "income")
+      .map((row) => row.sectionName || row.name)
+  );
+
+  const expenditureSectionNames = new Set(
+    budget.rows
+      .filter((row) => row.rowType === "section" && row.sectionType === "expenditure")
+      .map((row) => row.sectionName || row.name)
+  );
+
+  const incomeBudgetTotal = Array.from(incomeSectionNames).reduce((sum, sectionName) => sum + sectionBudgetTotal(sectionName), 0);
+  const expenditureBudgetTotal = Array.from(expenditureSectionNames).reduce((sum, sectionName) => sum + sectionBudgetTotal(sectionName), 0);
 
   const normalizedRows = rowsWithItemBudgets.map((row) => {
     if (row.rowType === "item") {
@@ -82,7 +130,8 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
     }
 
     if (row.rowType === "subsection") {
-      const subtotal = sumBudget((item) => item.sectionName === row.sectionName && item.subsectionName === row.name);
+      const subsectionKey = `${row.sectionName}::${row.name}`;
+      const subtotal = subsectionDirectAmounts.get(subsectionKey) ?? subtotalFromItems(row.sectionName, row.name);
       return {
         ...row,
         values: {
@@ -94,12 +143,11 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
 
     if (row.rowType === "section") {
       const sectionName = row.sectionName || row.name;
-      const sectionTotal = sumBudget((item) => item.sectionName === sectionName);
       return {
         ...row,
         values: {
           ...row.values,
-          [budgetCol.key]: sectionTotal,
+          [budgetCol.key]: sectionBudgetTotal(sectionName),
         },
       };
     }
@@ -376,6 +424,14 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"
               >
                 ↑ Upload New File
+              </button>
+              <button
+                onClick={() => {
+                  window.location.href = "/reports";
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors shrink-0"
+              >
+                🏦 Cash at Bank Reports
               </button>
             </div>
           </div>
