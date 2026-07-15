@@ -237,7 +237,8 @@ export function detectMapping(headers: string[], rows: Record<string, unknown>[]
       }
     });
 
-    if (bestHeader && bestScore >= Math.max(3, Math.floor(rows.length * 0.25))) {
+    const minNumericMatches = rows.length <= 3 ? 1 : Math.max(2, Math.floor(rows.length * 0.2));
+    if (bestHeader && bestScore >= minNumericMatches) {
       return bestHeader;
     }
     return undefined;
