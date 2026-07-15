@@ -20,6 +20,11 @@ function fmt(n: number) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(n);
 }
 
+function truncateLabel(label: string, maxLength = 34) {
+  if (label.length <= maxLength) return label;
+  return `${label.slice(0, maxLength - 1)}…`;
+}
+
 function sumValues(rows: BudgetRow[], colKeys: string[]): number {
   return rows.reduce((acc, r) => {
     for (const k of colKeys) acc += r.values[k] ?? 0;
@@ -72,9 +77,8 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
     .sort((a, b) => b.value - a.value);
 
   // Top 10 subsection headings by actual spend
-  const topItems = sectionData
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10);
+  const headingItems = sectionData;
+  const barChartHeight = Math.max(420, headingItems.length * 42);
 
   return (
     <div className="space-y-8">
@@ -111,32 +115,34 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
         {sectionData.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Spend by Heading</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Hover over a slice to see the heading name and total.
+            </p>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
-                <Pie data={sectionData} dataKey="value" cx="50%" cy="50%" outerRadius={100}>
+                <Pie data={sectionData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={100} paddingAngle={1}>
                   {sectionData.map((_, i) => (
                     <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v) => fmt(Number(v))} />
-                <Legend formatter={(v) => <span className="text-xs">{v}</span>} />
+                <Tooltip formatter={(v, _name, item) => [fmt(Number(v)), item.payload.name]} />
               </PieChart>
             </ResponsiveContainer>
           </div>
         )}
 
         {/* Top items */}
-        {topItems.length > 0 && (
+        {headingItems.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Top 10 Expenditure Headings (Actual)</h3>
-            <ResponsiveContainer width="100%" height={420}>
-              <BarChart data={topItems} layout="vertical" margin={{ top: 8, bottom: 8, left: 8, right: 10 }}>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">All Expenditure Headings (Actual)</h3>
+            <ResponsiveContainer width="100%" height={barChartHeight}>
+              <BarChart data={headingItems} layout="vertical" margin={{ top: 8, bottom: 8, left: 8, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis type="number" tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="name" width={220} tick={{ fontSize: 10 }} interval={0} />
-                <Tooltip formatter={(v) => fmt(Number(v))} />
+                <YAxis type="category" dataKey="name" width={220} tick={{ fontSize: 10 }} interval={0} tickFormatter={(value: string) => truncateLabel(value)} />
+                <Tooltip formatter={(v, _name, item) => [fmt(Number(v)), item.payload.name]} />
                 <Bar dataKey="value" fill="#3b82f6" radius={[0, 3, 3, 0]}>
-                  {topItems.map((_, i) => (
+                  {headingItems.map((_, i) => (
                     <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
                   ))}
                 </Bar>
