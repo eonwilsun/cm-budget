@@ -88,7 +88,7 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
     .filter((item) => item.value > 0)
     .sort((a, b) => b.value - a.value);
 
-  const supplierTargets = [
+  const defaultSupplierTargets = [
     { code: "DSSCRTY", label: "DS Security" },
     { code: "KMCCLEA", label: "KMC" },
     { code: "BRISFIRE", label: "Bristol Fire" },
@@ -100,6 +100,10 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
 
   const normalizeToken = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
+  const supplierTargets = sharedBudget.supplierSpendTargets.length > 0
+    ? sharedBudget.supplierSpendTargets
+    : defaultSupplierTargets.map((target) => ({ ...target, matches: [] as string[] }));
+
   const supplierSpendData = supplierTargets.map((target) => ({
     name: target.label,
     code: target.code,
@@ -107,12 +111,15 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   }));
 
   for (const row of expendItems) {
-    const haystack = normalizeToken(`${row.code} ${row.name} ${row.notes}`);
+    const haystack = normalizeToken(`${row.code} ${row.name} ${row.notes} ${row.subsectionName} ${row.sectionName}`);
     const rowSpend = sumValues([row], monthKeys);
     if (rowSpend === 0) continue;
 
-    const matchIndex = supplierSpendData.findIndex((supplier) => {
-      return haystack.includes(normalizeToken(supplier.code)) || haystack.includes(normalizeToken(supplier.name));
+    const matchIndex = supplierTargets.findIndex((supplier) => {
+      const tokens = [supplier.code, supplier.label, ...(supplier.matches ?? [])]
+        .map((token) => normalizeToken(token))
+        .filter((token) => token.length > 0);
+      return tokens.some((token) => haystack.includes(token));
     });
 
     if (matchIndex !== -1) {

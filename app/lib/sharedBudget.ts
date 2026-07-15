@@ -5,16 +5,24 @@ export interface SharedBudgetBreakdownItem {
   amount: number;
 }
 
+export interface SharedSupplierSpendTarget {
+  code: string;
+  label: string;
+  matches: string[];
+}
+
 export interface SharedBudgetConfig {
   year: number;
   totalBudget: number;
   breakdown: SharedBudgetBreakdownItem[];
+  supplierSpendTargets: SharedSupplierSpendTarget[];
 }
 
 const fallbackConfig: SharedBudgetConfig = {
   year: new Date().getFullYear(),
   totalBudget: 0,
   breakdown: [],
+  supplierSpendTargets: [],
 };
 
 function toFiniteNumber(value: unknown): number | null {
@@ -52,5 +60,16 @@ export function getSharedBudgetConfig(): SharedBudgetConfig {
           }))
           .filter((item) => item.heading.length > 0)
       : fallbackConfig.breakdown,
+    supplierSpendTargets: Array.isArray((raw as any).supplierSpendTargets)
+      ? (raw as any).supplierSpendTargets
+          .map((item: any) => ({
+            code: String(item?.code ?? "").trim(),
+            label: String(item?.label ?? "").trim(),
+            matches: Array.isArray(item?.matches)
+              ? item.matches.map((match: unknown) => String(match ?? "").trim()).filter((match: string) => match.length > 0)
+              : [],
+          }))
+          .filter((item: SharedSupplierSpendTarget) => item.code.length > 0 && item.label.length > 0)
+      : fallbackConfig.supplierSpendTargets,
   };
 }

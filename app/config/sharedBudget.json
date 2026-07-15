@@ -12,5 +12,14 @@
     { "heading": "Lift Maintenance", "amount": 16000 },
     { "heading": "Professional & Legal Fees", "amount": 12000 },
     { "heading": "Utilities", "amount": 7000 }
+  ],
+  "supplierSpendTargets": [
+    { "code": "DSSCRTY", "label": "DS Security", "matches": ["CCTV", "Callout/Repairs/Maintenance", "Access Control System"] },
+    { "code": "KMCCLEA", "label": "KMC", "matches": ["Cleaning maintenance", "Cleaner", "Window cleaning"] },
+    { "code": "BRISFIRE", "label": "Bristol Fire", "matches": ["Fire Prevention & Maintenance", "Maintenance Fire", "Dry Riser Annual", "Fire Extinguishers", "Fire risk assessment", "Smoke AOV"] },
+    { "code": "ARTEMES", "label": "Artemesia", "matches": ["Garden Maintenance", "Gardening"] },
+    { "code": "TOWERG", "label": "Towergate", "matches": ["Insurance Expense", "Property Insurance"] },
+    { "code": "JACKSON", "label": "Jacksons", "matches": ["Gates/Barrier Maintenance", "Gates Repaired", "Door Entry System"] },
+    { "code": "LIGHTCH", "label": "Chris Light", "matches": ["Chris Light", "Lighting", "Electrical"] }
   ]
 }
