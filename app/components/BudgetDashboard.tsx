@@ -40,6 +40,7 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const monthlyChartRef = useRef<HTMLDivElement>(null);
   const pieChartRef = useRef<HTMLDivElement>(null);
   const barChartRef = useRef<HTMLDivElement>(null);
+  const supplierChartRef = useRef<HTMLDivElement>(null);
   const monthCols = budget.columns.filter((c) => c.monthIndex !== null);
   const budgetCol = budget.columns.find((c) => c.isBudget);
   const monthKeys = monthCols.map((c) => c.key);
@@ -86,6 +87,38 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
     .map(([name, value]) => ({ name, value: Math.round(value) }))
     .filter((item) => item.value > 0)
     .sort((a, b) => b.value - a.value);
+
+  const supplierTargets = [
+    { code: "DSSCRTY", label: "DS Security" },
+    { code: "KMCCLEA", label: "KMC" },
+    { code: "BRISFIRE", label: "Bristol Fire" },
+    { code: "ARTEMES", label: "Artemesia" },
+    { code: "TOWERG", label: "Towergate" },
+    { code: "JACKSON", label: "Jacksons" },
+    { code: "LIGHTCH", label: "Chris Light" },
+  ] as const;
+
+  const normalizeToken = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  const supplierSpendData = supplierTargets.map((target) => ({
+    name: target.label,
+    code: target.code,
+    value: 0,
+  }));
+
+  for (const row of expendItems) {
+    const haystack = normalizeToken(`${row.code} ${row.name} ${row.notes}`);
+    const rowSpend = sumValues([row], monthKeys);
+    if (rowSpend === 0) continue;
+
+    const matchIndex = supplierSpendData.findIndex((supplier) => {
+      return haystack.includes(normalizeToken(supplier.code)) || haystack.includes(normalizeToken(supplier.name));
+    });
+
+    if (matchIndex !== -1) {
+      supplierSpendData[matchIndex].value += Math.round(rowSpend);
+    }
+  }
 
   // Top 10 subsection headings by actual spend
   const headingItems = sectionData;
@@ -228,6 +261,38 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Selected Supplier Spend (Actual)</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Totals for DSSCRTY, KMCCLEA, BRISFIRE, ARTEMES, TOWERG, JACKSON, and LIGHTCH.
+            </p>
+          </div>
+          <ChartButtons
+            baseName="cm-budget-selected-supplier-spend"
+            targetRef={supplierChartRef}
+            pngKey="supplier-png"
+            jpegKey="supplier-jpeg"
+          />
+        </div>
+        <div ref={supplierChartRef}>
+          <ResponsiveContainer width="100%" height={360}>
+            <BarChart data={supplierSpendData} layout="vertical" margin={{ top: 8, bottom: 8, left: 8, right: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis type="number" tickFormatter={(v) => `£${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
+              <YAxis type="category" dataKey="name" width={180} tick={{ fontSize: 11 }} interval={0} />
+              <Tooltip formatter={(v, _name, item) => [fmt(Number(v)), `${item.payload.name} (${item.payload.code})`]} />
+              <Bar dataKey="value" fill="#0ea5e9" radius={[0, 3, 3, 0]}>
+                {supplierSpendData.map((_, i) => (
+                  <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
