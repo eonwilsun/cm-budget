@@ -12,8 +12,9 @@ export default function FileUpload({ onFile }: FileUploadProps) {
 
   const handleFile = useCallback(
     (file: File) => {
-      if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
-        setError("Please upload a supported document (.xlsx or .xls).");
+      const name = file.name.toLowerCase();
+      if (!name.endsWith(".xlsx") && !name.endsWith(".xls") && !name.endsWith(".pdf")) {
+        setError("Please upload a supported document (.xlsx, .xls or .pdf).");
         return;
       }
       setError(null);
@@ -68,7 +69,7 @@ export default function FileUpload({ onFile }: FileUploadProps) {
           <label className="mt-2 cursor-pointer">
             <input
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.pdf"
               className="hidden"
               onChange={onInputChange}
             />
@@ -76,7 +77,7 @@ export default function FileUpload({ onFile }: FileUploadProps) {
               Choose File
             </span>
           </label>
-          <p className="text-xs text-gray-400">Supports .xlsx and .xls files</p>
+          <p className="text-xs text-gray-400">Supports .xlsx, .xls, and .pdf files</p>
         </div>
       </div>
 
