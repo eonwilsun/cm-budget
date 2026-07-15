@@ -112,15 +112,19 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   }));
 
   for (const row of expendItems) {
-    const haystack = normalizeToken(`${row.code} ${row.name} ${row.notes} ${row.subsectionName} ${row.sectionName}`);
+    const noteTokens = String(row.notes ?? "")
+      .split(/[,\s]+/)
+      .map((token) => normalizeToken(token))
+      .filter((token) => token.length > 0);
+
     const rowSpend = totalCol ? (row.values[totalCol.key] ?? 0) : sumValues([row], monthKeys);
     if (rowSpend === 0) continue;
 
     const matchIndex = supplierTargets.findIndex((supplier) => {
-      const tokens = [supplier.code, supplier.label, ...(supplier.matches ?? [])]
+      const tokens = [supplier.code, ...(supplier.matches ?? [])]
         .map((token) => normalizeToken(token))
         .filter((token) => token.length > 0);
-      return tokens.some((token) => haystack.includes(token));
+      return tokens.some((token) => noteTokens.includes(token));
     });
 
     if (matchIndex !== -1) {

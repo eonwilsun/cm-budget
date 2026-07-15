@@ -139,7 +139,7 @@ export function buildBudgetFromNominalTransactions(
           });
         }
 
-        const rowKey = `${sectionType}::${subsectionName}::${entry.code}::${itemName}`;
+        const rowKey = `${sectionType}::${subsectionName}::${entry.code}::${itemName}::${entry.accountToken.toUpperCase()}`;
         let row = itemsByKey.get(rowKey);
         if (!row) {
           row = {
@@ -155,8 +155,6 @@ export function buildBudgetFromNominalTransactions(
           };
           itemsByKey.set(rowKey, row);
           budgetRows.push(row);
-        } else if (entry.accountToken && !row.notes.toUpperCase().includes(entry.accountToken.toUpperCase())) {
-          row.notes = row.notes ? `${row.notes}, ${entry.accountToken}` : entry.accountToken;
         }
 
         const entryDate = new Date(entry.date);
