@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useMemo } from "react";
+import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import type { ParsedBudget } from "../types";
 import BudgetDashboard from "./BudgetDashboard";
 import BudgetTable, { sectionAnchorId } from "./BudgetTable";
@@ -192,6 +192,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   const budgetWithSharedBreakdown = useMemo(() => applySharedBreakdownToBudget(budget), [budget]);
   const [activeTab, setActiveTab] = useState<Tab>("report");
   const [editMode, setEditMode] = useState(false);
+  const [tableStickyTop, setTableStickyTop] = useState("12rem");
 
   // Collapse state — all sections/subsections collapsed by default
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => allSectionNames(budget));
@@ -203,6 +204,28 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   // Refs for capture
   const dashboardRef = useRef<HTMLDivElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
+  const stickyControlsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateStickyTop = () => {
+      const controlsHeight = stickyControlsRef.current?.offsetHeight ?? 0;
+      const topNavHeight = 56;
+      setTableStickyTop(`${topNavHeight + controlsHeight}px`);
+    };
+
+    updateStickyTop();
+    window.addEventListener("resize", updateStickyTop);
+
+    const observer = new ResizeObserver(updateStickyTop);
+    if (stickyControlsRef.current) {
+      observer.observe(stickyControlsRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", updateStickyTop);
+      observer.disconnect();
+    };
+  }, []);
 
   // ── Section / subsection toggle helpers ──────────────────────────────────
   const toggleSection = useCallback((name: string) => {
@@ -378,7 +401,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
 
   return (
     <div className="space-y-0">
-      <div className="sticky top-14 z-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 mb-6 shadow-sm">
+      <div ref={stickyControlsRef} className="sticky top-14 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 mb-6 shadow-sm">
         <div className="px-4 sm:px-6 lg:px-8 pt-3 pb-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -534,7 +557,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
               editable={isSavedBudget && editMode}
               onRowTextChange={handleRowTextChange}
               onRowValueChange={handleRowValueChange}
-              stickyTop="12rem"
+              stickyTop={tableStickyTop}
             />
           </div>
         </section>

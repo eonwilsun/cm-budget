@@ -4,6 +4,7 @@
   "totalBudget": 307395,
   "breakdown": [
     { "heading": "Accountancy/Company Fees", "amount": 3550 },
+    { "heading": "Callout/Repairs/Maintenance", "amount": 250 },
     { "heading": "CCTV", "amount": 250 },
     { "heading": "Cleaning", "amount": 88555 },
     { "heading": "Door Entry", "amount": 800 },

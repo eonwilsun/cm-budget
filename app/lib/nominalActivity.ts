@@ -5,6 +5,7 @@ import { getPdfJs } from "./pdfText";
 type NominalActivityEntry = {
   code: string;
   name: string;
+  accountToken: string;
   date: string;
   amount: number;
 };
@@ -71,6 +72,7 @@ function toNominalEntries(transactions: Transaction[]): NominalActivityEntry[] {
     .map((transaction) => ({
       code: transaction.account,
       name: transaction.category,
+      accountToken: transaction.description,
       date: transaction.date,
       amount: Math.abs(transaction.amount),
     }))
@@ -143,7 +145,7 @@ export function buildBudgetFromNominalTransactions(
           row = {
             code: entry.code,
             name: itemName,
-            notes: "",
+            notes: entry.accountToken,
             values: Object.fromEntries(columns.filter((column) => column.isBudget || column.isTotal || column.monthIndex !== null).map((column) => [column.key, null])),
             rowType: "item",
             sectionName: sectionType === "income" ? "INCOME" : "EXPENDITURE",
@@ -153,6 +155,8 @@ export function buildBudgetFromNominalTransactions(
           };
           itemsByKey.set(rowKey, row);
           budgetRows.push(row);
+        } else if (entry.accountToken && !row.notes.toUpperCase().includes(entry.accountToken.toUpperCase())) {
+          row.notes = row.notes ? `${row.notes}, ${entry.accountToken}` : entry.accountToken;
         }
 
         const entryDate = new Date(entry.date);
@@ -335,12 +339,12 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
         continue;
       }
 
-      const txnMatch = line.match(/^\s*\d+\s+\S+\s+(\d{2}\/\d{2}\/\d{4})\s+\S+\s+\S+\s+(.+?)\s+\d+\s+\S+\s+([0-9,]+(?:\.\d{2})?)\s+([0-9,]+(?:\.\d{2})?|-)\s+([0-9,]+(?:\.\d{2})?|-)/i);
+      const txnMatch = line.match(/^\s*\d+\s+\S+\s+(\d{2}\/\d{2}\/\d{4})\s+(\S+)\s+\S+\s+(.+?)\s+\d+\s+\S+\s+([0-9,]+(?:\.\d{2})?)\s+([0-9,]+(?:\.\d{2})?|-)\s+([0-9,]+(?:\.\d{2})?|-)/i);
       if (!txnMatch || !currentCode || !currentName) {
         continue;
       }
 
-      const [, rawDate, , valueRaw, debitRaw, creditRaw] = txnMatch;
+      const [, rawDate, rawAccount, , valueRaw, debitRaw, creditRaw] = txnMatch;
       const date = parseDateString(rawDate);
       const debit = debitRaw === "-" ? 0 : parseAmount(debitRaw);
       const credit = creditRaw === "-" ? 0 : parseAmount(creditRaw);
@@ -351,6 +355,7 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
       entries.push({
         code: currentCode,
         name: currentName,
+        accountToken: rawAccount,
         date,
         amount,
       });
@@ -359,7 +364,7 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
 
   const transactions: Transaction[] = entries.map((entry) => ({
     date: entry.date,
-    description: entry.name,
+    description: entry.accountToken,
     category: entry.name,
     account: entry.code,
     amount: entry.amount,

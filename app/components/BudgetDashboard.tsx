@@ -42,6 +42,7 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const barChartRef = useRef<HTMLDivElement>(null);
   const supplierChartRef = useRef<HTMLDivElement>(null);
   const monthCols = budget.columns.filter((c) => c.monthIndex !== null);
+  const totalCol = budget.columns.find((c) => c.isTotal);
   const budgetCol = budget.columns.find((c) => c.isBudget);
   const monthKeys = monthCols.map((c) => c.key);
   const allItems = budget.rows.filter((r) => r.rowType === "item");
@@ -112,7 +113,7 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
 
   for (const row of expendItems) {
     const haystack = normalizeToken(`${row.code} ${row.name} ${row.notes} ${row.subsectionName} ${row.sectionName}`);
-    const rowSpend = sumValues([row], monthKeys);
+    const rowSpend = totalCol ? (row.values[totalCol.key] ?? 0) : sumValues([row], monthKeys);
     if (rowSpend === 0) continue;
 
     const matchIndex = supplierTargets.findIndex((supplier) => {
