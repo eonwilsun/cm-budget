@@ -1,6 +1,7 @@
 {
+  "_yearlyUpdateNote": "Update year, totalBudget, and breakdown each year. Commit and push to main so all users see the new shared budget.",
   "year": 2026,
-  "totalBudget": 269295,
+  "totalBudget": 307395,
   "breakdown": [
     { "heading": "Accountancy/Company Fees", "amount": 3550 },
     { "heading": "CCTV", "amount": 250 },
