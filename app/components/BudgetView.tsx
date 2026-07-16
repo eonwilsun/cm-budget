@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import type { ParsedBudget } from "../types";
 import BudgetDashboard from "./BudgetDashboard";
 import BudgetTable, { sectionAnchorId } from "./BudgetTable";
@@ -504,6 +504,25 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   const goToReport = useCallback(() => {
     setActiveTab("report");
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      if (customEvent.detail === "dashboard") {
+        setActiveTab("dashboard");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      if (customEvent.detail === "report") {
+        setActiveTab("report");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+
+    window.addEventListener("cm-budget-nav", handler);
+    return () => {
+      window.removeEventListener("cm-budget-nav", handler);
+    };
   }, []);
 
   const goToSection = useCallback(

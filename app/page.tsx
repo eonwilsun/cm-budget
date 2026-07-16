@@ -191,18 +191,24 @@ export default function Home() {
             </div>
             {appState === "budget" && (
               <div className="hidden sm:flex items-center gap-2">
-                <a
-                  href="#budget-dashboard-section"
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent("cm-budget-nav", { detail: "dashboard" }));
+                  }}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 >
                   Dashboard
-                </a>
-                <a
-                  href="#budget-report-section"
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent("cm-budget-nav", { detail: "report" }));
+                  }}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 >
                   Report
-                </a>
+                </button>
               </div>
             )}
           </div>
