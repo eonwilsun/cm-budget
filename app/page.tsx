@@ -384,7 +384,7 @@ export default function Home() {
 
         {/* ── BUDGET REPORT ─────────────────────────────────────────────── */}
         {appState === "budget" && budgetData && (
-          <BudgetView budget={budgetData} fileName={fileName} onReset={handleReset} isSavedBudget={isViewingSavedBudget} onBudgetChange={isViewingSavedBudget ? persistBudget : undefined} onSaveAsSavedBudget={!isViewingSavedBudget ? saveCurrentBudget : undefined} />
+          <BudgetView budget={budgetData} fileName={fileName} onReset={handleReset} isSavedBudget={isViewingSavedBudget} hasSavedBudget={savedBudget !== null} onBudgetChange={isViewingSavedBudget ? persistBudget : undefined} onSaveAsSavedBudget={!isViewingSavedBudget ? saveCurrentBudget : undefined} onClearSavedBudget={!isViewingSavedBudget && savedBudget ? clearSavedBudget : undefined} />
         )}
       </main>
 

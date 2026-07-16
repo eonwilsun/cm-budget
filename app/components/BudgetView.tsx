@@ -14,8 +14,10 @@ interface BudgetViewProps {
   fileName: string;
   onReset: () => void;
   isSavedBudget?: boolean;
+  hasSavedBudget?: boolean;
   onBudgetChange?: (budget: ParsedBudget) => void;
   onSaveAsSavedBudget?: (budget: ParsedBudget) => void;
+  onClearSavedBudget?: () => void;
 }
 
 type Tab = "dashboard" | "report";
@@ -114,11 +116,13 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
       return insertAt;
     };
 
-    const insertItem = (itemName: string, subsectionName: string) => {
-      let subsectionIndex = findSubsectionIndex(subsectionName);
-      if (subsectionIndex === -1) {
-        subsectionIndex = insertSubsection(subsectionName);
-      }
+    const ensureSubsection = (subsectionName: string): number => {
+      const subsectionIndex = findSubsectionIndex(subsectionName);
+      return subsectionIndex === -1 ? insertSubsection(subsectionName) : subsectionIndex;
+    };
+
+    const itemInsertIndex = (subsectionName: string): number => {
+      const subsectionIndex = ensureSubsection(subsectionName);
 
       let insertAt = subsectionIndex + 1;
       while (insertAt < rowsWithSharedStructure.length) {
@@ -131,6 +135,17 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
         }
         insertAt += 1;
       }
+
+      return insertAt;
+    };
+
+    const insertItem = (itemName: string, subsectionName: string) => {
+      let subsectionIndex = findSubsectionIndex(subsectionName);
+      if (subsectionIndex === -1) {
+        subsectionIndex = insertSubsection(subsectionName);
+      }
+
+      const insertAt = itemInsertIndex(rowsWithSharedStructure[subsectionIndex].name);
 
       rowsWithSharedStructure.splice(insertAt, 0, {
         code: "",
@@ -145,11 +160,47 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
       });
     };
 
+    const moveItemToSubsection = (itemName: string, subsectionName: string) => {
+      ensureSubsection(subsectionName);
+
+      const itemIndex = findItemIndex(itemName);
+      if (itemIndex === -1) {
+        insertItem(itemName, subsectionName);
+        return;
+      }
+
+      const existingRow = rowsWithSharedStructure[itemIndex];
+      if (existingRow.rowType !== "item") {
+        return;
+      }
+
+      if (headingKey(existingRow.subsectionName) === headingKey(subsectionName)) {
+        return;
+      }
+
+      const [rowToMove] = rowsWithSharedStructure.splice(itemIndex, 1);
+      const insertAt = itemInsertIndex(subsectionName);
+      rowsWithSharedStructure.splice(insertAt, 0, {
+        ...rowToMove,
+        sectionName: expendSectionName,
+        sectionType: "expenditure",
+        subsectionName,
+        indent: 2,
+      });
+    };
+
     let activeSubsectionName = "";
 
     for (const sharedItem of sharedBudget.breakdown) {
       const heading = sharedItem.heading;
       if (!heading.trim()) continue;
+
+      if (sharedItem.subsectionHeading?.trim()) {
+        const targetSubsectionName = sharedItem.subsectionHeading.trim();
+        moveItemToSubsection(heading, targetSubsectionName);
+        activeSubsectionName = targetSubsectionName;
+        continue;
+      }
 
       const subsectionIndex = findSubsectionIndex(heading);
       if (subsectionIndex !== -1) {
@@ -326,7 +377,7 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
   };
 }
 
-export default function BudgetView({ budget, fileName, onReset, isSavedBudget = false, onBudgetChange, onSaveAsSavedBudget }: BudgetViewProps) {
+export default function BudgetView({ budget, fileName, onReset, isSavedBudget = false, hasSavedBudget = false, onBudgetChange, onSaveAsSavedBudget, onClearSavedBudget }: BudgetViewProps) {
   const budgetWithSharedBreakdown = applySharedBreakdownToBudget(budget);
   const [activeTab, setActiveTab] = useState<Tab>("report");
   const [editMode, setEditMode] = useState(false);
@@ -362,11 +413,11 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
     return "";
   };
 
-  const extractPdfTextLines = (textContent: any) => {
+  const extractPdfTextLines = (textContent: { items: Array<{ str?: string; transform?: number[] }> }) => {
     const lines = new Map<number, string[]>();
-    textContent.items.forEach((item: any) => {
+    textContent.items.forEach((item) => {
       const y = item.transform?.[5] ? Math.round(item.transform[5]) : 0;
-      const line = (lines.get(y) ?? []).concat(item.str);
+      const line = (lines.get(y) ?? []).concat(item.str ?? "");
       lines.set(y, line);
     });
 
@@ -706,12 +757,22 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
                 </button>
               )}
               {!isSavedBudget && onSaveAsSavedBudget && (
-                <button
-                  onClick={() => onSaveAsSavedBudget(budget)}
-                  className="px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  Save as Saved Budget
-                </button>
+                <>
+                  <button
+                    onClick={() => onSaveAsSavedBudget(budget)}
+                    className="px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    Save as Saved Budget
+                  </button>
+                  {hasSavedBudget && onClearSavedBudget && (
+                    <button
+                      onClick={onClearSavedBudget}
+                      className="px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950"
+                    >
+                      Clear Saved Budget
+                    </button>
+                  )}
+                </>
               )}
               <button
                 onClick={onReset}
