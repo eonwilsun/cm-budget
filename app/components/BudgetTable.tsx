@@ -61,10 +61,13 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
     // Code column width (px) — used for the sticky second column's left offset
     const codeW = 72;
     const nameW = 220;
+    const valueColMinW = 88;
+    const tableMinWidth = codeW + nameW + valueCols.length * valueColMinW;
+    const nameColumnWidth = `max(${nameW}px, calc(100% - ${codeW + valueCols.length * valueColMinW}px))`;
 
     return (
       <div ref={ref} className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-        <table className="min-w-full text-xs border-collapse" style={{ minWidth: `${codeW + nameW + valueCols.length * 90}px` }}>
+        <table className="w-full min-w-full text-xs border-collapse" style={{ minWidth: `${tableMinWidth}px` }}>
           {/* ── HEADER ───────────────────────────────────────────────────── */}
           <thead className="z-20">
             <tr className="bg-gray-800 dark:bg-gray-900 text-white">
@@ -78,7 +81,7 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
               {/* Sticky Name column */}
               <th
                 className="text-left font-semibold px-3 py-2 border-r border-gray-600 whitespace-nowrap bg-gray-800 dark:bg-gray-900"
-                style={{ position: "sticky", left: codeW, width: nameW, minWidth: nameW, zIndex: 22 }}
+                style={{ position: "sticky", left: codeW, width: nameColumnWidth, minWidth: nameW, zIndex: 22 }}
               >
                 Name
               </th>
@@ -93,7 +96,7 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                         ? "bg-gray-700 dark:bg-gray-800"
                         : "bg-gray-800 dark:bg-gray-900"
                   }`}
-                  style={{ minWidth: 88 }}
+                  style={{ minWidth: valueColMinW }}
                 >
                   {col.label}
                 </th>
@@ -122,7 +125,7 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                     </td>
                     <td
                       className={`px-3 py-2 font-bold uppercase tracking-wide ${bg}`}
-                      style={{ position: "sticky", left: codeW, zIndex: 10 }}
+                      style={{ position: "sticky", left: codeW, width: nameColumnWidth, minWidth: nameW, zIndex: 10 }}
                       colSpan={1}
                     >
                       {row.name}
@@ -151,7 +154,7 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                     </td>
                     <td
                       className={`px-3 py-1.5 font-semibold pl-6 ${SUBSECTION_BG}`}
-                      style={{ position: "sticky", left: codeW, zIndex: 10 }}
+                      style={{ position: "sticky", left: codeW, width: nameColumnWidth, minWidth: nameW, zIndex: 10 }}
                     >
                       {row.name}
                     </td>
@@ -169,7 +172,7 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                 return (
                   <tr key={idx} className={TOTAL_BG}>
                     <td className={`px-2 py-1.5 ${TOTAL_BG}`} style={{ position: "sticky", left: 0, zIndex: 10, width: codeW }}>{row.code}</td>
-                    <td className={`px-3 py-1.5 pl-4 ${TOTAL_BG}`} style={{ position: "sticky", left: codeW, zIndex: 10 }}>{row.name}</td>
+                    <td className={`px-3 py-1.5 pl-4 ${TOTAL_BG}`} style={{ position: "sticky", left: codeW, width: nameColumnWidth, minWidth: nameW, zIndex: 10 }}>{row.name}</td>
                     {valueCols.map((col) => (
                       <td key={col.key} className={`px-2 py-1.5 text-right ${numClass(row.values[col.key] ?? null)}`}>
                         {fmt(row.values[col.key] ?? null)}
@@ -184,7 +187,7 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                 return (
                   <tr key={idx} className={NET_BG}>
                     <td className={`px-2 py-2 ${NET_BG}`} style={{ position: "sticky", left: 0, zIndex: 10, width: codeW }}>{row.code}</td>
-                    <td className={`px-3 py-2 ${NET_BG}`} style={{ position: "sticky", left: codeW, zIndex: 10 }}>{row.name}</td>
+                    <td className={`px-3 py-2 ${NET_BG}`} style={{ position: "sticky", left: codeW, width: nameColumnWidth, minWidth: nameW, zIndex: 10 }}>{row.name}</td>
                     {valueCols.map((col) => (
                       <td key={col.key} className={`px-2 py-2 text-right ${numClass(row.values[col.key] ?? null)}`}>
                         {fmt(row.values[col.key] ?? null)}
@@ -215,7 +218,7 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                   </td>
                   <td
                     className={`px-3 py-1 pl-10 text-gray-800 dark:text-gray-200 ${isEven ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-850"}`}
-                    style={{ position: "sticky", left: codeW, zIndex: 10 }}
+                    style={{ position: "sticky", left: codeW, width: nameColumnWidth, minWidth: nameW, zIndex: 10 }}
                   >
                     {editable ? (
                       <div className="space-y-1">
