@@ -350,29 +350,15 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
       const credit = creditRaw === "-" ? 0 : parseAmount(creditRaw);
       const value = parseAmount(valueRaw);
       const sectionType = classifySectionType(currentCode);
-      const hasDebitCredit = debit > 0 || credit > 0;
       let amount = value;
+      const upperType = txnType.toUpperCase();
+      const upperDetails = rawDetails.toUpperCase();
+      const isCreditLike = upperType.endsWith("C") || /PROPERTY\s+SOLD|CREDIT\s+NOTE|REFUND|REVERSAL/i.test(upperDetails);
 
-      if (hasDebitCredit) {
-        if (sectionType === "income") {
-          amount = credit - debit;
-        } else if (sectionType === "expenditure") {
-          amount = debit - credit;
-        } else {
-          amount = value;
-        }
-      } else {
-        // Fallback when PDF text extraction collapses debit/credit columns.
-        const upperDetails = rawDetails.toUpperCase();
-        const isContraIncome = /PROPERTY\s+SOLD|CREDIT\s+NOTE|REFUND|REVERSAL/i.test(upperDetails);
-
-        if (sectionType === "income") {
-          amount = isContraIncome ? -Math.abs(value) : Math.abs(value);
-        } else if (sectionType === "expenditure") {
-          amount = txnType.toUpperCase().endsWith("C") ? -Math.abs(value) : Math.abs(value);
-        } else {
-          amount = value;
-        }
+      if (sectionType === "income" || sectionType === "expenditure") {
+        amount = isCreditLike ? -Math.abs(value) : Math.abs(value);
+      } else if (debit > 0 || credit > 0) {
+        amount = credit - debit;
       }
 
       if (!date || amount === 0) continue;
