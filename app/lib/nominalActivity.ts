@@ -339,30 +339,33 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
         continue;
       }
 
-      const txnMatch = line.match(/^\s*\d+\s+\S+\s+(\d{2}\/\d{2}\/\d{4})\s+(\S+)\s+\S+\s+(.+?)\s+\d+\s+\S+\s+([0-9,]+(?:\.\d{2})?)\s+([0-9,]+(?:\.\d{2})?|-)\s+([0-9,]+(?:\.\d{2})?|-)/i);
+      const txnMatch = line.match(/^\s*\d+\s+([A-Z]{1,3})\s+(\d{2}\/\d{2}\/\d{4})\s+(\S+)\s+\S+\s+(.+?)\s+\d+\s+\S+\s+([0-9,]+(?:\.\d{2})?)\s+([0-9,]+(?:\.\d{2})?|-)+\s+([0-9,]+(?:\.\d{2})?|-)/i);
       if (!txnMatch || !currentCode || !currentName) {
         continue;
       }
 
-      const [, rawDate, rawAccount, , valueRaw, debitRaw, creditRaw] = txnMatch;
+      const [, txnType, rawDate, rawAccount, , valueRaw, debitRaw, creditRaw] = txnMatch;
       const date = parseDateString(rawDate);
       const debit = debitRaw === "-" ? 0 : parseAmount(debitRaw);
       const credit = creditRaw === "-" ? 0 : parseAmount(creditRaw);
       const value = parseAmount(valueRaw);
-      const sectionType = classifySectionType(currentCode);
-      const hasDebitCredit = debit > 0 || credit > 0;
+      let amount = value;
 
-      let amount = 0;
-      if (hasDebitCredit) {
+      // Sage nominal exports can collapse blank debit/credit columns in extracted PDF text.
+      // Type code is the most reliable signal for netting direction.
+      if (txnType.toUpperCase().endsWith("C")) {
+        amount = -Math.abs(value);
+      } else if (txnType.toUpperCase().endsWith("I")) {
+        amount = Math.abs(value);
+      } else if (debit > 0 || credit > 0) {
+        const sectionType = classifySectionType(currentCode);
         if (sectionType === "income") {
           amount = credit - debit;
         } else if (sectionType === "expenditure") {
           amount = debit - credit;
         } else {
-          amount = credit - debit;
+          amount = value;
         }
-      } else {
-        amount = value;
       }
 
       if (!date || amount === 0) continue;
