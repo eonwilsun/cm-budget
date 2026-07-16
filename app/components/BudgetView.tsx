@@ -226,6 +226,20 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
 
       insertItem(heading, activeSubsectionName);
     }
+
+    // Ensure any sharedBudget items that still don't exist in the uploaded
+    // budget are explicitly inserted. This guarantees items like
+    // "Accountancy" (3500) are added when the uploaded sheet doesn't
+    // include them.
+    for (const sharedItem of sharedBudget.breakdown) {
+      const itemName = sharedItem.heading;
+      if (!itemName.trim()) continue;
+      const idx = findItemIndex(itemName);
+      if (idx === -1) {
+        const targetSub = sharedItem.subsectionHeading?.trim() || itemName;
+        insertItem(itemName, targetSub);
+      }
+    }
   }
 
   const amountByHeading = new Map<string, number>();
