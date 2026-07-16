@@ -92,7 +92,12 @@ function toFiniteNumber(value: unknown): number | null {
 }
 
 export function getSharedBudgetConfig(): SharedBudgetConfig {
-  const raw = sharedBudgetJson as Partial<SharedBudgetConfig> & { supplierSpendTargets?: unknown };
+  const raw = sharedBudgetJson as {
+    year?: unknown;
+    totalBudget?: unknown;
+    breakdown?: unknown;
+    supplierSpendTargets?: unknown;
+  };
   const year = toFiniteNumber(raw.year);
   const totalBudget = toFiniteNumber(raw.totalBudget);
   const rawSupplierSpendTargets = raw.supplierSpendTargets;
