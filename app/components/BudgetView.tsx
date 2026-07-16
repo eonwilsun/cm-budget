@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useMemo } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import type { ParsedBudget } from "../types";
 import BudgetDashboard from "./BudgetDashboard";
 import BudgetTable, { sectionAnchorId } from "./BudgetTable";
@@ -58,7 +58,9 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
 
   const amountByHeading = new Map<string, number>();
   for (const item of sharedBudget.breakdown) {
-    amountByHeading.set(headingKey(item.heading), item.amount);
+    const key = headingKey(item.heading);
+    const existing = amountByHeading.get(key) ?? 0;
+    amountByHeading.set(key, existing + item.amount);
   }
 
   const subsectionDirectAmounts = new Map<string, number>();
@@ -204,7 +206,7 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
 }
 
 export default function BudgetView({ budget, fileName, onReset, isSavedBudget = false, onBudgetChange, onSaveAsSavedBudget }: BudgetViewProps) {
-  const budgetWithSharedBreakdown = useMemo(() => applySharedBreakdownToBudget(budget), [budget]);
+  const budgetWithSharedBreakdown = applySharedBreakdownToBudget(budget);
   const [activeTab, setActiveTab] = useState<Tab>("report");
   const [editMode, setEditMode] = useState(false);
   const [cashAtBankItems, setCashAtBankItems] = useState<CashAtBankItem[]>([]);

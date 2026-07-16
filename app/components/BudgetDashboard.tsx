@@ -53,8 +53,8 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const totalBudgetAll = budgetCol ? sumValues(allItems, [budgetCol.key]) : 0;
   const totalBudgetIncome = budgetCol ? sumValues(incomeItems, [budgetCol.key]) : 0;
   const totalBudgetExpend = budgetCol ? sumValues(expendItems, [budgetCol.key]) : 0;
-  const totalActualIncome = sumValues(incomeItems, monthKeys);
-  const totalActualExpend = sumValues(expendItems, monthKeys);
+  const totalActualIncome = totalCol ? sumValues(incomeItems, [totalCol.key]) : sumValues(incomeItems, monthKeys);
+  const totalActualExpend = totalCol ? sumValues(expendItems, [totalCol.key]) : sumValues(expendItems, monthKeys);
   const sharedBreakdownTotal = sharedBudget.breakdown.reduce((sum, item) => sum + item.amount, 0);
   const budgetTotalForCards = sharedBudget.totalBudget !== 0 ? sharedBudget.totalBudget : sharedBreakdownTotal;
   const netBudget = budgetTotalForCards - totalActualExpend;
