@@ -184,9 +184,27 @@ export default function Home() {
       {/* Nav */}
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">💰</span>
-            <span className="font-bold text-gray-900 dark:text-white text-lg">CM Budget</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">💰</span>
+              <span className="font-bold text-gray-900 dark:text-white text-lg">CM Budget</span>
+            </div>
+            {appState === "budget" && (
+              <div className="hidden sm:flex items-center gap-2">
+                <a
+                  href="#budget-dashboard-section"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Dashboard
+                </a>
+                <a
+                  href="#budget-report-section"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Report
+                </a>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-4">
             {savedBudget && appState === "idle" && (

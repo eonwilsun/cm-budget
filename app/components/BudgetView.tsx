@@ -525,6 +525,20 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   const incomeSections = sectionRows.filter((r) => r.sectionType === "income");
   const expendSections = sectionRows.filter((r) => r.sectionType === "expenditure");
   const totalRows = budgetWithSharedBreakdown.rows.filter((r) => r.rowType === "total" || r.rowType === "net");
+  const cashCards = [
+    ...cashAtBankItems.slice(0, 3).map((item) => ({
+      key: item.code,
+      label: `${item.code} ${item.name}`,
+      value: item.balance,
+      isTotal: false,
+    })),
+    {
+      key: "cash-total",
+      label: "Total Cash at Bank",
+      value: cashAtBankItems.reduce((sum, item) => sum + item.balance, 0),
+      isTotal: true,
+    },
+  ];
 
   // ── Export helpers ────────────────────────────────────────────────────────
   async function handleExport(action: () => Promise<void>, key: string) {
@@ -744,6 +758,20 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
         </div>
         </div>
       </div>
+
+      {cashAtBankItems.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          {cashCards.map((card) => (
+            <div
+              key={card.key}
+              className={`rounded-xl border p-4 ${card.isTotal ? "bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800" : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"}`}
+            >
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide leading-tight min-h-[2rem]">{card.label}</p>
+              <p className={`text-2xl font-bold mt-2 ${card.isTotal ? "text-emerald-700 dark:text-emerald-300" : "text-gray-900 dark:text-white"}`}>£{fmtCash(card.value)}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Tab selector ──────────────────────────────────────────────────── */}
       <div className="border-b border-gray-200 dark:border-gray-700 mb-6">

@@ -344,25 +344,32 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
         continue;
       }
 
-      const [, txnType, rawDate, rawAccount, , valueRaw, debitRaw, creditRaw] = txnMatch;
+      const [, txnType, rawDate, rawAccount, rawDetails, valueRaw, debitRaw, creditRaw] = txnMatch;
       const date = parseDateString(rawDate);
       const debit = debitRaw === "-" ? 0 : parseAmount(debitRaw);
       const credit = creditRaw === "-" ? 0 : parseAmount(creditRaw);
       const value = parseAmount(valueRaw);
+      const sectionType = classifySectionType(currentCode);
+      const hasDebitCredit = debit > 0 || credit > 0;
       let amount = value;
 
-      // Sage nominal exports can collapse blank debit/credit columns in extracted PDF text.
-      // Type code is the most reliable signal for netting direction.
-      if (txnType.toUpperCase().endsWith("C")) {
-        amount = -Math.abs(value);
-      } else if (txnType.toUpperCase().endsWith("I")) {
-        amount = Math.abs(value);
-      } else if (debit > 0 || credit > 0) {
-        const sectionType = classifySectionType(currentCode);
+      if (hasDebitCredit) {
         if (sectionType === "income") {
           amount = credit - debit;
         } else if (sectionType === "expenditure") {
           amount = debit - credit;
+        } else {
+          amount = value;
+        }
+      } else {
+        // Fallback when PDF text extraction collapses debit/credit columns.
+        const upperDetails = rawDetails.toUpperCase();
+        const isContraIncome = /PROPERTY\s+SOLD|CREDIT\s+NOTE|REFUND|REVERSAL/i.test(upperDetails);
+
+        if (sectionType === "income") {
+          amount = isContraIncome ? -Math.abs(value) : Math.abs(value);
+        } else if (sectionType === "expenditure") {
+          amount = txnType.toUpperCase().endsWith("C") ? -Math.abs(value) : Math.abs(value);
         } else {
           amount = value;
         }

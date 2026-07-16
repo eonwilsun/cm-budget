@@ -72,8 +72,8 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   // Income vs Expenditure by month
   const monthlyData = monthCols.map((col) => ({
     month: col.label,
-    Income: Math.round(sumValues(incomeItems, [col.key])),
-    Expenditure: Math.round(sumValues(expendItems, [col.key])),
+    Income: Math.round(Math.abs(sumValues(incomeItems, [col.key]))),
+    Expenditure: Math.round(Math.abs(sumValues(expendItems, [col.key]))),
   })).filter((d) => d.Income !== 0 || d.Expenditure !== 0);
 
   // Spend by subsection heading when present, otherwise by item/section label.
