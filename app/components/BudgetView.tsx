@@ -56,6 +56,127 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
     return budget;
   }
 
+  const valueTemplate = Object.fromEntries(
+    budget.columns
+      .filter((column) => column.isBudget || column.monthIndex !== null || column.isTotal)
+      .map((column) => [column.key, null])
+  );
+
+  const expendSection = budget.rows.find((row) => row.rowType === "section" && row.sectionType === "expenditure");
+  const expendSectionName = expendSection?.sectionName || expendSection?.name || "";
+
+  const rowsWithSharedStructure = [...budget.rows];
+
+  if (expendSectionName) {
+    const keyOf = (value: string) => headingKey(value);
+
+    const findSubsectionIndex = (subsectionName: string) => rowsWithSharedStructure.findIndex(
+      (row) => row.rowType === "subsection" && row.sectionName === expendSectionName && keyOf(row.name) === keyOf(subsectionName)
+    );
+
+    const findItemIndex = (itemName: string) => rowsWithSharedStructure.findIndex(
+      (row) => row.rowType === "item" && row.sectionName === expendSectionName && keyOf(row.name) === keyOf(itemName)
+    );
+
+    const expenditureTotalIndex = () => rowsWithSharedStructure.findIndex(
+      (row) => row.rowType === "total" && row.sectionType === "expenditure"
+    );
+
+    const sectionEndIndex = () => {
+      const sectionIndex = rowsWithSharedStructure.findIndex(
+        (row) => row.rowType === "section" && (row.sectionName || row.name) === expendSectionName
+      );
+      if (sectionIndex === -1) return rowsWithSharedStructure.length;
+      for (let i = sectionIndex + 1; i < rowsWithSharedStructure.length; i += 1) {
+        const row = rowsWithSharedStructure[i];
+        if (row.rowType === "section") {
+          return i;
+        }
+      }
+      return rowsWithSharedStructure.length;
+    };
+
+    const insertSubsection = (subsectionName: string): number => {
+      const totalIndex = expenditureTotalIndex();
+      const fallbackIndex = sectionEndIndex();
+      const insertAt = totalIndex >= 0 ? totalIndex : fallbackIndex;
+      rowsWithSharedStructure.splice(insertAt, 0, {
+        code: "",
+        name: subsectionName,
+        notes: "",
+        values: { ...valueTemplate },
+        rowType: "subsection",
+        sectionName: expendSectionName,
+        sectionType: "expenditure",
+        subsectionName: "",
+        indent: 0,
+      });
+      return insertAt;
+    };
+
+    const insertItem = (itemName: string, subsectionName: string) => {
+      let subsectionIndex = findSubsectionIndex(subsectionName);
+      if (subsectionIndex === -1) {
+        subsectionIndex = insertSubsection(subsectionName);
+      }
+
+      let insertAt = subsectionIndex + 1;
+      while (insertAt < rowsWithSharedStructure.length) {
+        const row = rowsWithSharedStructure[insertAt];
+        if (row.rowType === "subsection" || row.rowType === "total" || row.rowType === "section" || row.rowType === "net") {
+          break;
+        }
+        if (row.rowType === "item" && row.subsectionName !== subsectionName) {
+          break;
+        }
+        insertAt += 1;
+      }
+
+      rowsWithSharedStructure.splice(insertAt, 0, {
+        code: "",
+        name: itemName,
+        notes: "",
+        values: { ...valueTemplate },
+        rowType: "item",
+        sectionName: expendSectionName,
+        sectionType: "expenditure",
+        subsectionName,
+        indent: 2,
+      });
+    };
+
+    let activeSubsectionName = "";
+
+    for (const sharedItem of sharedBudget.breakdown) {
+      const heading = sharedItem.heading;
+      if (!heading.trim()) continue;
+
+      const subsectionIndex = findSubsectionIndex(heading);
+      if (subsectionIndex !== -1) {
+        activeSubsectionName = rowsWithSharedStructure[subsectionIndex].name;
+        continue;
+      }
+
+      const itemIndex = findItemIndex(heading);
+      if (itemIndex !== -1) {
+        const itemSubsection = rowsWithSharedStructure[itemIndex].subsectionName;
+        if (itemSubsection) {
+          activeSubsectionName = itemSubsection;
+        }
+        continue;
+      }
+
+      if (!activeSubsectionName) {
+        // No known subsection yet; treat this heading as a new subsection anchor.
+        insertSubsection(heading);
+        activeSubsectionName = heading;
+        continue;
+      }
+
+      insertItem(heading, activeSubsectionName);
+    }
+  }
+
   const amountByHeading = new Map<string, number>();
   for (const item of sharedBudget.breakdown) {
     const key = headingKey(item.heading);
@@ -64,7 +185,7 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
   }
 
   const subsectionDirectAmounts = new Map<string, number>();
-  for (const row of budget.rows) {
+  for (const row of rowsWithSharedStructure) {
     if (row.rowType !== "subsection") continue;
     const direct = amountByHeading.get(headingKey(row.name));
     if (direct !== undefined) {
@@ -72,7 +193,7 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
     }
   }
 
-  const rowsWithItemBudgets = budget.rows.map((row) => {
+  const rowsWithItemBudgets = rowsWithSharedStructure.map((row) => {
     if (row.rowType !== "item") {
       return row;
     }
@@ -535,6 +656,9 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
                   This uploaded budget is temporary. It is not saved unless you press Save as Saved Budget.
                 </p>
               )}
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                To update budget values, update the GitHub file app/config/sharedBudget.json.
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {isSavedBudget && onBudgetChange && (

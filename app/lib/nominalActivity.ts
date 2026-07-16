@@ -74,9 +74,9 @@ function toNominalEntries(transactions: Transaction[]): NominalActivityEntry[] {
       name: transaction.category,
       accountToken: transaction.description,
       date: transaction.date,
-      amount: Math.abs(transaction.amount),
+      amount: transaction.amount,
     }))
-    .filter((entry) => entry.amount > 0);
+    .filter((entry) => entry.amount !== 0);
 }
 
 export function buildBudgetFromNominalTransactions(
@@ -349,7 +349,21 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
       const debit = debitRaw === "-" ? 0 : parseAmount(debitRaw);
       const credit = creditRaw === "-" ? 0 : parseAmount(creditRaw);
       const value = parseAmount(valueRaw);
-      const amount = Math.abs(credit || debit || value);
+      const sectionType = classifySectionType(currentCode);
+      const hasDebitCredit = debit > 0 || credit > 0;
+
+      let amount = 0;
+      if (hasDebitCredit) {
+        if (sectionType === "income") {
+          amount = credit - debit;
+        } else if (sectionType === "expenditure") {
+          amount = debit - credit;
+        } else {
+          amount = credit - debit;
+        }
+      } else {
+        amount = value;
+      }
 
       if (!date || amount === 0) continue;
       entries.push({

@@ -22,6 +22,8 @@
     { "heading": "Fire Extinguishers", "amount": 3150 },
     { "heading": "Fire risk assessment", "amount": 500 },
     { "heading": "Smoke AOV", "amount": 200 },
+    { "heading": "Gardening", "amount": 5100 },
+    { "heading": "Plants and sundries", "amount": 200 },
     { "heading": "Utilities", "amount": 7000 }
   ],
   "supplierSpendTargets": [
