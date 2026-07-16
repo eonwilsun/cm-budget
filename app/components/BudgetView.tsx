@@ -764,14 +764,12 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
                   >
                     Save as Saved Budget
                   </button>
-                  {hasSavedBudget && onClearSavedBudget && (
-                    <button
-                      onClick={onClearSavedBudget}
-                      className="px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950"
-                    >
-                      Clear Saved Budget
-                    </button>
-                  )}
+                  <button
+                    onClick={hasSavedBudget && onClearSavedBudget ? onClearSavedBudget : onReset}
+                    className="px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950"
+                  >
+                    {hasSavedBudget ? "Clear Saved Budget" : "Clear Data"}
+                  </button>
                 </>
               )}
               <button

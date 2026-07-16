@@ -67,7 +67,14 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
 
     return (
       <div ref={ref} className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-        <table className="w-full min-w-full text-xs border-collapse" style={{ minWidth: `${tableMinWidth}px` }}>
+        <table className="w-full min-w-full table-fixed text-xs border-collapse" style={{ minWidth: `${tableMinWidth}px` }}>
+          <colgroup>
+            <col style={{ width: codeW, minWidth: codeW }} />
+            <col style={{ width: nameColumnWidth, minWidth: nameW }} />
+            {valueCols.map((col) => (
+              <col key={col.key} style={{ width: valueColMinW, minWidth: valueColMinW }} />
+            ))}
+          </colgroup>
           {/* ── HEADER ───────────────────────────────────────────────────── */}
           <thead className="z-20">
             <tr className="bg-gray-800 dark:bg-gray-900 text-white">
@@ -230,7 +237,7 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                         />
                       </div>
                     ) : (
-                      row.name
+                      <span className="block truncate">{row.name}</span>
                     )}
                   </td>
                   {valueCols.map((col) => {
