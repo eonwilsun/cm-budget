@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useMemo } from "react";
-import type { ParsedBudget } from "../types";
+import type { ParsedBudget, BudgetRow } from "../types";
 import BudgetDashboard from "./BudgetDashboard";
 import BudgetTable, { sectionAnchorId } from "./BudgetTable";
 import { downloadAsPNG, downloadAsPDF } from "../lib/exportUtils";
@@ -89,7 +89,60 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
     };
   });
 
-  const itemRows = rowsWithItemBudgets.filter((row) => row.rowType === "item");
+  // Find which breakdown headings are already represented by a subsection or item row
+  const matchedHeadings = new Set<string>();
+  for (const row of rowsWithItemBudgets) {
+    if ((row.rowType === "subsection" || row.rowType === "item") && amountByHeading.has(headingKey(row.name))) {
+      matchedHeadings.add(headingKey(row.name));
+    }
+  }
+
+  // Build synthetic item rows for unmatched breakdown entries and insert them
+  // just before the first expenditure total or net row so they are visible in
+  // the table and included in the budget total calculation.
+  const expenditureSectionRow = budget.rows.find(
+    (row) => row.rowType === "section" && row.sectionType === "expenditure"
+  );
+  const syntheticRows: BudgetRow[] = [];
+  if (expenditureSectionRow) {
+    const expendSectionName = expenditureSectionRow.sectionName || expenditureSectionRow.name;
+    const valueTemplate = Object.fromEntries(
+      budget.columns
+        .filter((c) => c.isBudget || c.monthIndex !== null || c.isTotal)
+        .map((c) => [c.key, null] as [string, number | null])
+    );
+    for (const item of sharedBudget.breakdown) {
+      if (!matchedHeadings.has(headingKey(item.heading))) {
+        syntheticRows.push({
+          code: "",
+          name: item.heading,
+          notes: "",
+          values: { ...valueTemplate, [budgetCol.key]: item.amount },
+          rowType: "item",
+          sectionName: expendSectionName,
+          sectionType: "expenditure",
+          subsectionName: "",
+          indent: 2,
+        });
+      }
+    }
+  }
+
+  // Insert synthetic rows before the first expenditure total / net row
+  const rowsWithSynthetic: BudgetRow[] = [];
+  let syntheticInserted = syntheticRows.length === 0;
+  for (const row of rowsWithItemBudgets) {
+    if (!syntheticInserted && (row.rowType === "total" || row.rowType === "net")) {
+      rowsWithSynthetic.push(...syntheticRows);
+      syntheticInserted = true;
+    }
+    rowsWithSynthetic.push(row);
+  }
+  if (!syntheticInserted) {
+    rowsWithSynthetic.push(...syntheticRows);
+  }
+
+  const itemRows = rowsWithSynthetic.filter((row) => row.rowType === "item");
 
   const subtotalFromItems = (sectionName: string, subsectionName: string): number => {
     return itemRows.reduce((sum, item) => {
@@ -139,7 +192,7 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
   const incomeBudgetTotal = Array.from(incomeSectionNames).reduce((sum, sectionName) => sum + sectionBudgetTotal(sectionName), 0);
   const expenditureBudgetTotal = Array.from(expenditureSectionNames).reduce((sum, sectionName) => sum + sectionBudgetTotal(sectionName), 0);
 
-  const normalizedRows = rowsWithItemBudgets.map((row) => {
+  const normalizedRows = rowsWithSynthetic.map((row) => {
     if (row.rowType === "item") {
       return row;
     }
