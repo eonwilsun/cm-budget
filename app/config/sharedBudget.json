@@ -4,9 +4,9 @@
   "totalBudget": 307395,
   "breakdown": [
     {
-      "heading": "Accountancy/company fees",
+      "heading": "Accountancy/Company Fees",
       "items": [
-        { "heading": "Accountancy", "amount": 3500 },
+        { "heading": "Accountancy fees", "amount": 3500 },
         { "heading": "Annual Return", "amount": 50 }
       ]
     },
@@ -19,16 +19,16 @@
     {
       "heading": "Cleaning maintenance",
       "items": [
-        { "heading": "Cleaner & Porter.", "amount": 83555 },
+        { "heading": "Cleaner", "amount": 83555 },
         { "heading": "Cleaning goods", "amount": 100 },
         { "heading": "Porters additional hours", "amount": 100 },
-        { "heading": "Window clean", "amount": 5000 }
+        { "heading": "Window cleaning", "amount": 5000 }
       ]
     },
     {
-      "heading": "Door entry system",
+      "heading": "Door Entry System",
       "items": [
-        { "heading": "Maintain", "amount": 800 },
+        { "heading": "Maintainance", "amount": 800 },
         { "heading": "Intercom", "amount": 100 },
         { "heading": "Keypad repairs", "amount": 100 }
       ]
@@ -37,42 +37,42 @@
       "heading": "Fire prevention & maintenance",
       "items": [
         { "heading": "Annual Fire alarm maintain.", "amount": 700 },
-        { "heading": "Dry Riser test / Service", "amount": 750 },
+        { "heading": "Dry Riser annual", "amount": 750 },
         { "heading": "Emergency lights maint", "amount": 750 },
-        { "heading": "Fire Extinguishers.", "amount": 3150 },
-        { "heading": "FRA. Retainer", "amount": 3000 },
+        { "heading": "Fire Extinguishers", "amount": 3150 },
+        { "heading": "FRA Retainer", "amount": 3000 },
         { "heading": "Fire alarm phone", "amount": 400 },
         { "heading": "A OV w/w Maintain.", "amount": 200 },
-        { "heading": "Fire Risk Analysis.", "amount": 2500 }
+        { "heading": "Fire Risk assessment", "amount": 2500 }
       ]
     },
     {
       "heading": "Garden maintenance",
       "items": [
         { "heading": "Gardening", "amount": 5100 },
-        { "heading": "Plants + sundries.", "amount": 200 }
+        { "heading": "Plants & sundries.", "amount": 200 }
       ]
     },
     {
       "heading": "Gates/barrier maintenance",
       "items": [
-        { "heading": "Call out / repair/service", "amount": 200 }
+        { "heading": "Gates repaired", "amount": 200 }
       ]
     },
     {
       "heading": "Insurance expense",
       "items": [
-        { "heading": "Director + Officer", "amount": 700 },
+        { "heading": "Director & Officer", "amount": 700 },
         { "heading": "Insurance Expense Renewal", "amount": 1500 },
-        { "heading": "Property", "amount": 83600 },
-        { "heading": "Bldg reinstatement survey.", "amount": 2000 }
+        { "heading": "Property insurance", "amount": 83600 },
+        { "heading": "Building reinstatement survey", "amount": 2000 }
       ]
     },
     {
       "heading": "Lift maintenance",
       "items": [
-        { "heading": "Annual service contract.", "amount": 8200 },
-        { "heading": "Call out + repair", "amount": 2500 },
+        { "heading": "Annual lift contract.", "amount": 8200 },
+        { "heading": "Call out & repair for lift", "amount": 2500 },
         { "heading": "Engineering Insurance", "amount": 2000 },
         { "heading": "Phone line for lift", "amount": 3400 }
       ]
@@ -80,11 +80,11 @@
     {
       "heading": "Maintenance & repairs",
       "items": [
-        { "heading": "Sky repairs.", "amount": 300 },
-        { "heading": "Balcony capping", "amount": 2000 },
+        { "heading": "Aerial & Sky repairs.", "amount": 300 },
+        { "heading": "Balcony repairs", "amount": 2000 },
         { "heading": "Clean out refuge/recycling", "amount": 600 },
-        { "heading": "Electrical works", "amount": 4200 },
-        { "heading": "Storm Damage Incl 7740", "amount": 10000 },
+        { "heading": "Electrical works/various", "amount": 4200 },
+        { "heading": "Storm Damage repairs", "amount": 10000 },
         { "heading": "Lightning protection", "amount": 2000 },
         { "heading": "Repairs Gate", "amount": 1500 },
         { "heading": "Roof inspection / report", "amount": 500 },
@@ -99,9 +99,9 @@
       "items": [
         { "heading": "Printer ink", "amount": 200 },
         { "heading": "Microsoft office", "amount": 150 },
-        { "heading": "Five yearly electrical test Calbarrie", "amount": 1500 },
+        { "heading": "PAT Testing", "amount": 1500 },
         { "heading": "Mobile phone", "amount": 50 },
-        { "heading": "Broadband.  BT", "amount": 500 }
+        { "heading": "Telephone/Broadband for porters", "amount": 500 }
       ]
     },
     {
@@ -109,8 +109,8 @@
       "items": [
         { "heading": "Bank charges", "amount": 350 },
         { "heading": "Corporation Tax", "amount": 250 },
-        { "heading": "Management fee", "amount": 28300 },
-        { "heading": "Asbestos survey", "amount": 1000 }
+        { "heading": "Management fees", "amount": 28300 },
+        { "heading": "Asbestos samples analysed", "amount": 1000 }
       ]
     },
     {
@@ -125,13 +125,13 @@
       "heading": "Utilities",
       "items": [
         { "heading": "Electricity", "amount": 17500 },
-        { "heading": "Water (porters room)", "amount": 340 }
+        { "heading": "Water (Porter's room)", "amount": 340 }
       ]
     },
     {
       "heading": "Water hygiene +  risk assessment",
       "items": [
-        { "heading": "Water hygiene contract", "amount": 3000 },
+        { "heading": "Water Hygiene", "amount": 3000 },
         { "heading": "Water pressure switch", "amount": 1200 },
         { "heading": "Clean water tank.", "amount": 750 }
       ]
