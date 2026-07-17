@@ -318,7 +318,11 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
       // If an uploaded sheet has extra expenditure items not present in
       // sharedBudget, force their budget value to zero so section totals match
       // the shared configuration.
-      if (row.sectionType === "expenditure") {
+      const inExpenditureSection =
+        row.sectionType === "expenditure"
+        || (expendSectionName.trim().length > 0 && headingKey(row.sectionName) === headingKey(expendSectionName));
+
+      if (inExpenditureSection) {
         return {
           ...row,
           values: {
