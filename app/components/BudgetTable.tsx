@@ -38,6 +38,14 @@ function numClass(n: number | null) {
   return n < 0 ? "text-red-600 dark:text-red-400" : "";
 }
 
+function normalizeExpandKeyPart(value: string): string {
+  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function makeExpandKey(sectionName: string, subsectionName: string): string {
+  return `${normalizeExpandKeyPart(sectionName)}::${normalizeExpandKeyPart(subsectionName)}`;
+}
+
 // Derive a scroll-target id from a section name
 export function sectionAnchorId(name: string) {
   return `budget-section-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
@@ -49,13 +57,24 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
       (c) => c.isBudget || c.monthIndex !== null || c.isTotal
     );
 
+    const normalizedExpandedSections = new Set(
+      Array.from(expandedSections).map((name) => normalizeExpandKeyPart(name))
+    );
+
+    const normalizedExpandedSubsections = new Set(
+      Array.from(expandedSubsections).map((key) => {
+        const [section = "", subsection = ""] = String(key).split("::");
+        return makeExpandKey(section, subsection);
+      })
+    );
+
     function isVisible(row: BudgetRow): boolean {
       if (row.rowType === "section" || row.rowType === "net") return true;
-      if (!expandedSections.has(row.sectionName)) return false;
+      if (!normalizedExpandedSections.has(normalizeExpandKeyPart(row.sectionName))) return false;
       if (row.rowType === "subsection" || row.rowType === "total") return true;
       // item
       if (!row.subsectionName) return true;
-      return expandedSubsections.has(`${row.sectionName}::${row.subsectionName}`);
+      return normalizedExpandedSubsections.has(makeExpandKey(row.sectionName, row.subsectionName));
     }
 
     // Code column width (px) — used for the sticky second column's left offset
