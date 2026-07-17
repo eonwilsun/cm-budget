@@ -401,7 +401,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
 
   // Collapse state — all sections/subsections collapsed by default
   const [expandedSections, setExpandedSections] = useState<Set<string>>(() => allSectionNames(budget));
-  const [expandedSubsections, setExpandedSubsections] = useState<Set<string>>(() => allSubsectionNames(budget));
+  const [expandedSubsections, setExpandedSubsections] = useState<Set<string>>(() => allSubsectionNames(budgetWithSharedBreakdown));
 
   // Download state
   const [exporting, setExporting] = useState<string | null>(null);
