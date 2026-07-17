@@ -236,7 +236,13 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
       const idx = findItemIndex(itemName);
       if (idx === -1) {
         const targetSub = sharedItem.subsectionHeading?.trim() || itemName;
-        insertItem(itemName, targetSub);
+        // If the shared item name equals the subsection name, don't
+        // insert a duplicate item row; ensure the subsection exists instead.
+        if (headingKey(targetSub) === headingKey(itemName)) {
+          ensureSubsection(targetSub);
+        } else {
+          insertItem(itemName, targetSub);
+        }
       }
     }
   }
@@ -258,12 +264,25 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
     amountByHeading.set(key, existing + item.amount);
   }
 
+  // Sum amounts by subsection heading as well so subsections receive
+  // direct totals when sharedBudget lists multiple items under one group.
+  const subsectionTotals = new Map<string, number>();
+  for (const item of sharedBudget.breakdown) {
+    if (!item.subsectionHeading) continue;
+    const key = headingKey(item.subsectionHeading);
+    const existing = subsectionTotals.get(key) ?? 0;
+    subsectionTotals.set(key, existing + item.amount);
+  }
+
   const subsectionDirectAmounts = new Map<string, number>();
   for (const row of rowsWithSharedStructure) {
     if (row.rowType !== "subsection") continue;
-    const direct = amountByHeading.get(headingKey(row.name));
-    if (direct !== undefined) {
-      subsectionDirectAmounts.set(`${row.sectionName}::${row.name}`, direct);
+    const key = headingKey(row.name);
+    const direct = amountByHeading.get(key);
+    const subTotal = subsectionTotals.get(key);
+    const value = direct !== undefined ? direct : subTotal;
+    if (value !== undefined) {
+      subsectionDirectAmounts.set(`${row.sectionName}::${row.name}`, value);
     }
   }
 
