@@ -314,6 +314,19 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
 
     const mappedAmount = amountByHeading.get(headingKey(row.name));
     if (mappedAmount === undefined) {
+      // For expenditure rows, budget values should come only from sharedBudget.
+      // If an uploaded sheet has extra expenditure items not present in
+      // sharedBudget, force their budget value to zero so section totals match
+      // the shared configuration.
+      if (row.sectionType === "expenditure") {
+        return {
+          ...row,
+          values: {
+            ...row.values,
+            [budgetCol.key]: 0,
+          },
+        };
+      }
       return row;
     }
 
