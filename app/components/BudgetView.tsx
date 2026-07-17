@@ -451,10 +451,47 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
     return row;
   });
 
+  const sharedBreakdownTotal = sharedBudget.breakdown.reduce((sum, item) => sum + item.amount, 0);
+  const sharedExpenditureBudgetTotal = sharedBudget.totalBudget !== 0 ? sharedBudget.totalBudget : sharedBreakdownTotal;
+
+  // Safety override: the shared budget JSON is the source of truth for
+  // the expenditure budget total row/section.
+  const rowsWithAuthoritativeExpenditureTotal = normalizedRows.map((row) => {
+    if (row.rowType === "section") {
+      const sectionNameKey = headingKey(row.sectionName || row.name || "");
+      const isExpenditureSection = row.sectionType === "expenditure" || sectionNameKey.includes("expend");
+      if (isExpenditureSection) {
+        return {
+          ...row,
+          values: {
+            ...row.values,
+            [budgetCol.key]: sharedExpenditureBudgetTotal,
+          },
+        };
+      }
+    }
+
+    if (row.rowType === "total") {
+      const totalNameKey = headingKey(row.name || "");
+      const isExpenditureTotal = row.sectionType === "expenditure" || totalNameKey.includes("expend");
+      if (isExpenditureTotal) {
+        return {
+          ...row,
+          values: {
+            ...row.values,
+            [budgetCol.key]: sharedExpenditureBudgetTotal,
+          },
+        };
+      }
+    }
+
+    return row;
+  });
+
   return {
     ...budget,
     columns,
-    rows: normalizedRows,
+    rows: rowsWithAuthoritativeExpenditureTotal,
   };
 }
 
