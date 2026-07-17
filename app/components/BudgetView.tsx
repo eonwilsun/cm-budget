@@ -53,13 +53,13 @@ function fmtCash(n: number): string {
 
 function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
   const sharedBudget = getSharedBudgetConfig();
-  const budgetCol = budget.columns.find((c) => c.isBudget);
-  if (!budgetCol || sharedBudget.breakdown.length === 0) {
-    return budget;
-  }
+
+  const columns = budget.columns;
+  const budgetCol = columns.find((c) => c.isBudget);
+  if (sharedBudget.breakdown.length === 0) return budget;
 
   const valueTemplate = Object.fromEntries(
-    budget.columns
+    columns
       .filter((column) => column.isBudget || column.monthIndex !== null || column.isTotal)
       .map((column) => [column.key, null])
   );
@@ -229,8 +229,7 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
 
     // Ensure any sharedBudget items that still don't exist in the uploaded
     // budget are explicitly inserted. This guarantees items like
-    // "Accountancy" (3500) are added when the uploaded sheet doesn't
-    // include them.
+    // "Accountancy" are added when the uploaded sheet doesn't include them.
     for (const sharedItem of sharedBudget.breakdown) {
       const itemName = sharedItem.heading;
       if (!itemName.trim()) continue;
@@ -240,6 +239,16 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
         insertItem(itemName, targetSub);
       }
     }
+  }
+
+  // If there's no budget column in the uploaded sheet, stop here and return
+  // the budget with the missing subsections/items inserted (but without
+  // writing any amounts). This keeps inserted rows visible like the rest.
+  if (!budgetCol) {
+    return {
+      ...budget,
+      rows: rowsWithSharedStructure,
+    };
   }
 
   const amountByHeading = new Map<string, number>();
@@ -387,6 +396,7 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
 
   return {
     ...budget,
+    columns,
     rows: normalizedRows,
   };
 }
