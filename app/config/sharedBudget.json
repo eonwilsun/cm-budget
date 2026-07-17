@@ -1,12 +1,12 @@
 {
   "_yearlyUpdateNote": "Update year, totalBudget, and breakdown each year. Commit and push to main so all users see the new shared budget.",
   "year": 2026,
-  "totalBudget": 307395,
+  "totalBudget": 306895,
   "breakdown": [
     {
       "heading": "Accountancy/Company Fees",
       "items": [
-        { "heading": "Accountancy fees", "amount": 3500 },
+        { "heading": "Accountancy", "amount": 3500 },
         { "heading": "Annual Return", "amount": 50 }
       ]
     },
@@ -42,7 +42,7 @@
         { "heading": "Fire Extinguishers", "amount": 3150 },
         { "heading": "FRA Retainer", "amount": 3000 },
         { "heading": "Fire alarm phone", "amount": 400 },
-        { "heading": "A OV w/w Maintain.", "amount": 200 },
+        { "heading": "Smoke AOV", "amount": 200 },
         { "heading": "Fire Risk assessment", "amount": 2500 }
       ]
     },

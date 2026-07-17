@@ -64,8 +64,29 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
       .map((column) => [column.key, null])
   );
 
-  const expendSection = budget.rows.find((row) => row.rowType === "section" && row.sectionType === "expenditure");
-  const expendSectionName = expendSection?.sectionName || expendSection?.name || "";
+  // Prefer an explicit section marked as expenditure. If none exists,
+  // fall back to a best-effort guess (a section containing 'expend')
+  // or finally the first section in the sheet. This ensures shared
+  // budget items are inserted even when uploaded sheets don't set
+  // `sectionType` correctly.
+  let expendSection = budget.rows.find((row) => row.rowType === "section" && row.sectionType === "expenditure");
+  let expendSectionName = expendSection?.sectionName || expendSection?.name || "";
+
+  if (!expendSectionName) {
+    const guessed = budget.rows.find((row) => row.rowType === "section" && String(row.sectionName || row.name || "").toLowerCase().includes("expend"));
+    if (guessed) {
+      expendSectionName = guessed.sectionName || guessed.name || "";
+      expendSection = guessed;
+    }
+  }
+
+  if (!expendSectionName) {
+    const firstSection = budget.rows.find((row) => row.rowType === "section");
+    if (firstSection) {
+      expendSectionName = firstSection.sectionName || firstSection.name || "";
+      expendSection = firstSection;
+    }
+  }
 
   const rowsWithSharedStructure = [...budget.rows];
 
