@@ -196,7 +196,8 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
           </div>
           <div
             ref={monthlyChartRef}
-            style={{ width: `${image1Size.width}px`, height: `${image1Size.height}px` }}
+            className="w-full"
+            style={{ height: `${image1Size.height}px` }}
           >
             <ResponsiveContainer width="100%" height={image1Size.height}>
               <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
