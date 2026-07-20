@@ -20,6 +20,7 @@ export interface SharedBudgetImageSize {
 export interface SharedBudgetConfig {
   year: number;
   totalBudget: number;
+  reportExpenditureTotal: number;
   image1Size: SharedBudgetImageSize;
   breakdown: SharedBudgetBreakdownItem[];
   supplierSpendTargets: SharedSupplierSpendTarget[];
@@ -28,6 +29,7 @@ export interface SharedBudgetConfig {
 const fallbackConfig: SharedBudgetConfig = {
   year: new Date().getFullYear(),
   totalBudget: 0,
+  reportExpenditureTotal: 0,
   image1Size: {
     width: 307,
     height: 464,
@@ -105,12 +107,14 @@ export function getSharedBudgetConfig(): SharedBudgetConfig {
   const raw = sharedBudgetJson as {
     year?: unknown;
     totalBudget?: unknown;
+    reportExpenditureTotal?: unknown;
     image1Size?: unknown;
     breakdown?: unknown;
     supplierSpendTargets?: unknown;
   };
   const year = toFiniteNumber(raw.year);
   const totalBudget = toFiniteNumber(raw.totalBudget);
+  const reportExpenditureTotal = toFiniteNumber(raw.reportExpenditureTotal);
   const rawImage1Size = raw.image1Size as { width?: unknown; height?: unknown } | null | undefined;
   const image1Width = rawImage1Size ? toFiniteNumber(rawImage1Size.width) : null;
   const image1Height = rawImage1Size ? toFiniteNumber(rawImage1Size.height) : null;
@@ -119,6 +123,7 @@ export function getSharedBudgetConfig(): SharedBudgetConfig {
   return {
     year: year !== null ? year : fallbackConfig.year,
     totalBudget: totalBudget !== null ? totalBudget : fallbackConfig.totalBudget,
+    reportExpenditureTotal: reportExpenditureTotal !== null ? reportExpenditureTotal : fallbackConfig.reportExpenditureTotal,
     image1Size: {
       width: image1Width !== null ? image1Width : fallbackConfig.image1Size.width,
       height: image1Height !== null ? image1Height : fallbackConfig.image1Size.height,

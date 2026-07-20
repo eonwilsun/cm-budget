@@ -452,7 +452,9 @@ function applySharedBreakdownToBudget(budget: ParsedBudget): ParsedBudget {
   });
 
   const sharedBreakdownTotal = sharedBudget.breakdown.reduce((sum, item) => sum + item.amount, 0);
-  const sharedExpenditureBudgetTotal = sharedBudget.totalBudget !== 0 ? sharedBudget.totalBudget : sharedBreakdownTotal;
+  const sharedExpenditureBudgetTotal = sharedBudget.reportExpenditureTotal !== 0
+    ? sharedBudget.reportExpenditureTotal
+    : sharedBreakdownTotal;
 
   // Safety override: the shared budget JSON is the source of truth for
   // the expenditure budget total row/section.
