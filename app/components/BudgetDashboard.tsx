@@ -104,6 +104,7 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const supplierTargets = sharedBudget.supplierSpendTargets.length > 0
     ? sharedBudget.supplierSpendTargets
     : defaultSupplierTargets.map((target) => ({ ...target, matches: [] as string[] }));
+  const image1Size = sharedBudget.image1Size;
 
   const supplierSpendData = supplierTargets.map((target) => ({
     name: target.label,
@@ -193,8 +194,11 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Income vs Expenditure by Month</h3>
             <ChartButtons baseName="cm-budget-income-vs-expenditure" targetRef={monthlyChartRef} pngKey="month-png" jpegKey="month-jpeg" />
           </div>
-          <div ref={monthlyChartRef}>
-            <ResponsiveContainer width="100%" height={260}>
+          <div
+            ref={monthlyChartRef}
+            style={{ width: `${image1Size.width}px`, height: `${image1Size.height}px` }}
+          >
+            <ResponsiveContainer width="100%" height={image1Size.height}>
               <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />

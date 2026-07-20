@@ -1,7 +1,12 @@
 {
   "_yearlyUpdateNote": "Update year, totalBudget, and breakdown each year. Commit and push to main so all users see the new shared budget.",
+  "_image1UpdateNote": "Update image1Size each year.",
   "year": 2026,
-  "totalBudget": 306895,
+  "totalBudget": 307464,
+  "image1Size": {
+    "width": 307,
+    "height": 464
+  },
   "breakdown": [
     {
       "heading": "Accountancy/Company Fees",
@@ -36,7 +41,7 @@
     {
       "heading": "Fire prevention & maintenance",
       "items": [
-        { "heading": "Annual Fire alarm maintain.", "amount": 700 },
+        { "heading": "Annual Fire alarm maintainance", "amount": 700 },
         { "heading": "Dry Riser annual", "amount": 750 },
         { "heading": "Emergency lights maint", "amount": 750 },
         { "heading": "Fire Extinguishers", "amount": 3150 },
@@ -89,8 +94,8 @@
         { "heading": "Repairs Gate", "amount": 1500 },
         { "heading": "Roof inspection / report", "amount": 500 },
         { "heading": "6 month eye bolt test.", "amount": 800 },
-        { "heading": "Water leak repairs.", "amount": 250 },
-        { "heading": "General maintenance.", "amount": 5000 },
+        { "heading": "Water leak repairs", "amount": 250 },
+        { "heading": "Various Maintenance Repairs", "amount": 5000 },
         { "heading": "Flat entrance doors", "amount": 10000 }
       ]
     },

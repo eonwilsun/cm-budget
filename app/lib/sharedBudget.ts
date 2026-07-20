@@ -12,9 +12,15 @@ export interface SharedSupplierSpendTarget {
   matches: string[];
 }
 
+export interface SharedBudgetImageSize {
+  width: number;
+  height: number;
+}
+
 export interface SharedBudgetConfig {
   year: number;
   totalBudget: number;
+  image1Size: SharedBudgetImageSize;
   breakdown: SharedBudgetBreakdownItem[];
   supplierSpendTargets: SharedSupplierSpendTarget[];
 }
@@ -22,6 +28,10 @@ export interface SharedBudgetConfig {
 const fallbackConfig: SharedBudgetConfig = {
   year: new Date().getFullYear(),
   totalBudget: 0,
+  image1Size: {
+    width: 307,
+    height: 464,
+  },
   breakdown: [],
   supplierSpendTargets: [],
 };
@@ -95,16 +105,24 @@ export function getSharedBudgetConfig(): SharedBudgetConfig {
   const raw = sharedBudgetJson as {
     year?: unknown;
     totalBudget?: unknown;
+    image1Size?: unknown;
     breakdown?: unknown;
     supplierSpendTargets?: unknown;
   };
   const year = toFiniteNumber(raw.year);
   const totalBudget = toFiniteNumber(raw.totalBudget);
+  const rawImage1Size = raw.image1Size as { width?: unknown; height?: unknown } | null | undefined;
+  const image1Width = rawImage1Size ? toFiniteNumber(rawImage1Size.width) : null;
+  const image1Height = rawImage1Size ? toFiniteNumber(rawImage1Size.height) : null;
   const rawSupplierSpendTargets = raw.supplierSpendTargets;
 
   return {
     year: year !== null ? year : fallbackConfig.year,
     totalBudget: totalBudget !== null ? totalBudget : fallbackConfig.totalBudget,
+    image1Size: {
+      width: image1Width !== null ? image1Width : fallbackConfig.image1Size.width,
+      height: image1Height !== null ? image1Height : fallbackConfig.image1Size.height,
+    },
     breakdown: parseBreakdown(raw.breakdown),
     supplierSpendTargets: Array.isArray(rawSupplierSpendTargets)
       ? rawSupplierSpendTargets
