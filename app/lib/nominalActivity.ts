@@ -20,6 +20,12 @@ type ParsedNominalTxnLine = {
   creditRaw: string;
 };
 
+type LooseNominalTxnLine = {
+  rawDate: string;
+  amountRaw: string;
+  accountToken: string;
+};
+
 type PdfTextContentItem = {
   str?: string;
   transform?: number[];
@@ -114,6 +120,29 @@ function parseNominalTxnLine(line: string): ParsedNominalTxnLine | null {
     valueRaw,
     debitRaw,
     creditRaw,
+  };
+}
+
+function parseLooseNominalTxnLine(line: string): LooseNominalTxnLine | null {
+  const compactLine = line.replace(/[–—−]/g, "-").replace(/\s+/g, " ").trim();
+  if (!compactLine) return null;
+
+  const dateMatch = compactLine.match(/\b(\d{2}\/\d{2}\/\d{4})\b/);
+  if (!dateMatch) return null;
+
+  const tokens = compactLine.split(" ");
+  const amountToken = [...tokens].reverse().find((token) => isMoneyToken(token) && token !== "-");
+  if (!amountToken) return null;
+
+  const dateToken = dateMatch[1];
+  const dateIndex = tokens.indexOf(dateToken);
+  if (dateIndex === -1) return null;
+
+  const accountToken = tokens[dateIndex + 1] ?? "";
+  return {
+    rawDate: dateToken,
+    amountRaw: amountToken,
+    accountToken,
   };
 }
 
@@ -569,6 +598,25 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
       if (!parsedLine && looksLikeNominalTxnPrefix(line)) {
         pendingTxnPrefix = line;
         continue;
+      }
+
+      if (!parsedLine && currentCode && currentName) {
+        const looseLine = parseLooseNominalTxnLine(line);
+        if (looseLine) {
+          const date = parseDateString(looseLine.rawDate);
+          const amount = parseAmount(looseLine.amountRaw);
+          if (date && amount !== 0) {
+            const sectionType = classifySectionType(currentCode);
+            entries.push({
+              code: currentCode,
+              name: currentName,
+              accountToken: looseLine.accountToken,
+              date,
+              amount: sectionType === "income" ? Math.abs(amount) : amount,
+            });
+            continue;
+          }
+        }
       }
 
       if (!parsedLine || !currentCode || !currentName) {
