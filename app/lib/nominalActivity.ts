@@ -55,57 +55,44 @@ function isMoneyToken(value: string): boolean {
   return value === "-" || /^[0-9,]+(?:\.\d{2})?$/.test(value);
 }
 
+function looksLikeNominalTxnPrefix(line: string): boolean {
+  return /^\s*\d+\s+\S+\s+\d{2}\/\d{2}\/\d{4}\s+\S+\s+/i.test(line);
+}
+
 function parseNominalTxnLine(line: string): ParsedNominalTxnLine | null {
   const compactLine = line.replace(/\s+/g, " ").trim();
   if (!compactLine) return null;
 
-  // Primary parser: anchor on the date and read value/debit/credit from the
-  // right-most columns. This is robust when reference/detail columns vary.
-  const primary = compactLine.match(
-    /^\s*\d+\s+(\S+)\s+(\d{2}\/\d{2}\/\d{4})\s+(\S+)\s+(.+?)\s+([0-9,]+(?:\.\d{2})?|-)\s+([0-9,]+(?:\.\d{2})?|-)\s+([0-9,]+(?:\.\d{2})?|-)\s*$/i
-  );
-
-  if (primary) {
-    const [, txnType, rawDate, rawAccount, detailBlock, valueRaw, debitRaw, creditRaw] = primary;
-    const detailParts = detailBlock.trim().split(/\s+/);
-    // Nominal lines often contain a numeric ref + account code after the account token.
-    // Drop those trailing technical tokens so category matching uses the real narrative.
-    while (detailParts.length > 1 && /^(?:\d+|[A-Z0-9\-\/]+)$/i.test(detailParts[0])) {
-      detailParts.shift();
-    }
-
-    return {
-      txnType,
-      rawDate,
-      rawAccount,
-      rawDetails: detailParts.join(" ") || detailBlock,
-      valueRaw,
-      debitRaw,
-      creditRaw,
-    };
-  }
-
-  // Fallback parser: find the trailing amount triplet and a preceding date.
   const parts = compactLine.split(" ");
-  if (parts.length < 8) return null;
-
-  const creditRaw = parts[parts.length - 1];
-  const debitRaw = parts[parts.length - 2];
-  const valueRaw = parts[parts.length - 3];
-  if (!isMoneyToken(valueRaw) || !isMoneyToken(debitRaw) || !isMoneyToken(creditRaw)) {
-    return null;
-  }
+  if (parts.length < 6) return null;
+  if (!/^\d+$/.test(parts[0])) return null;
 
   const dateIndex = parts.findIndex((part) => /^\d{2}\/\d{2}\/\d{4}$/.test(part));
   if (dateIndex <= 1) return null;
 
   const txnType = parts[dateIndex - 1];
   const rawAccount = parts[dateIndex + 1] ?? "";
-  const detailsStart = dateIndex + 2;
-  const detailsEnd = parts.length - 3;
-  const rawDetails = detailsStart < detailsEnd ? parts.slice(detailsStart, detailsEnd).join(" ") : "";
-
   if (!rawAccount) return null;
+
+  // Collect trailing money-like tokens from the right. Different nominal PDF
+  // layouts may include either [value, debit, credit] or just [debit, credit].
+  const trailingMoneyReversed: string[] = [];
+  for (let i = parts.length - 1; i > dateIndex + 1; i -= 1) {
+    if (!isMoneyToken(parts[i])) break;
+    trailingMoneyReversed.push(parts[i]);
+  }
+
+  if (trailingMoneyReversed.length < 2) return null;
+
+  const trailingMoney = trailingMoneyReversed.reverse();
+  const moneyStartIndex = parts.length - trailingMoney.length;
+  const detailsStart = dateIndex + 2;
+  const detailsEnd = Math.max(detailsStart, moneyStartIndex);
+  const rawDetails = parts.slice(detailsStart, detailsEnd).join(" ");
+
+  const creditRaw = trailingMoney[trailingMoney.length - 1] ?? "-";
+  const debitRaw = trailingMoney[trailingMoney.length - 2] ?? "-";
+  const valueRaw = trailingMoney.length >= 3 ? trailingMoney[trailingMoney.length - 3] : "-";
 
   return {
     txnType,
@@ -392,6 +379,7 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
   const entries: NominalActivityEntry[] = [];
   let currentCode = "";
   let currentName = "";
+  let pendingTxnPrefix = "";
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
@@ -415,26 +403,40 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
       if (metadataMatch) {
         currentCode = metadataMatch[1].trim();
         currentName = metadataMatch[2].trim();
+        pendingTxnPrefix = "";
         continue;
       }
 
       const codeOnlyMatch = line.match(/^n\/c\s*:\s*(\d+)$/i);
       if (codeOnlyMatch) {
         currentCode = codeOnlyMatch[1].trim();
+        pendingTxnPrefix = "";
         continue;
       }
 
       const nameOnlyMatch = line.match(/^name\s*:\s*(.+)$/i);
       if (nameOnlyMatch) {
         currentName = nameOnlyMatch[1].replace(/\s+account balance\s*:?.*$/i, "").trim();
+        pendingTxnPrefix = "";
         continue;
       }
 
       if (/^(date|time|page|no\s+type|totals?:|history balance:|account balance:)/i.test(line)) {
+        pendingTxnPrefix = "";
         continue;
       }
 
-      const parsedLine = parseNominalTxnLine(line);
+      let parsedLine = parseNominalTxnLine(line);
+      if (!parsedLine && pendingTxnPrefix) {
+        parsedLine = parseNominalTxnLine(`${pendingTxnPrefix} ${line}`);
+        pendingTxnPrefix = "";
+      }
+
+      if (!parsedLine && looksLikeNominalTxnPrefix(line)) {
+        pendingTxnPrefix = line;
+        continue;
+      }
+
       if (!parsedLine || !currentCode || !currentName) {
         continue;
       }
