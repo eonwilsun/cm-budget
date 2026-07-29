@@ -322,7 +322,17 @@ export function mergeActualsIntoSavedBudget(
 ): ParsedBudget {
   const normalizedSavedBudget = normalizeBudgetSubsections(savedBudget);
   const normalizedActualBudget = normalizeBudgetSubsections(actualBudget);
+  const valueColumns = normalizedSavedBudget.columns.filter(
+    (column) => column.isBudget || column.monthIndex !== null || column.isTotal
+  );
   const savedActualColumns = normalizedSavedBudget.columns.filter((column) => column.monthIndex !== null || column.isTotal);
+  const nullValueTemplate = Object.fromEntries(valueColumns.map((column) => [column.key, null]));
+  const savedItemKeys = new Set(
+    normalizedSavedBudget.rows
+      .filter((row) => row.rowType === "item")
+      .map((row) => rowKey(row))
+  );
+  const matchedActualKeys = new Set<string>();
   const actualRowMap = new Map(
     normalizedActualBudget.rows
       .filter((row) => row.rowType === "item")
@@ -347,6 +357,7 @@ export function mergeActualsIntoSavedBudget(
     };
 
     if (match) {
+      matchedActualKeys.add(rowKey(match));
       savedActualColumns.forEach((savedColumn) => {
         const actualColumn = normalizedActualBudget.columns.find((column) => {
           if (savedColumn.isTotal && column.isTotal) return true;
@@ -363,6 +374,108 @@ export function mergeActualsIntoSavedBudget(
       values: nextValues,
     };
   });
+
+  const findSectionEndIndex = (rows: BudgetRow[], sectionName: string): number => {
+    const sectionIndex = rows.findIndex((row) => row.rowType === "section" && row.sectionName === sectionName);
+    if (sectionIndex === -1) return rows.length;
+    for (let i = sectionIndex + 1; i < rows.length; i += 1) {
+      if (rows[i].rowType === "section") return i;
+    }
+    return rows.length;
+  };
+
+  const toSavedColumnValues = (actualRow: BudgetRow) => {
+    const values: Record<string, number | null> = { ...nullValueTemplate };
+    savedActualColumns.forEach((savedColumn) => {
+      const actualColumn = normalizedActualBudget.columns.find((column) => {
+        if (savedColumn.isTotal && column.isTotal) return true;
+        return savedColumn.monthIndex !== null && savedColumn.monthIndex === column.monthIndex;
+      });
+      if (actualColumn) {
+        values[savedColumn.key] = actualRow.values[actualColumn.key] ?? null;
+      }
+    });
+    return values;
+  };
+
+  const appendUnmatchedActualRows = normalizedActualBudget.rows.filter((row) => {
+    if (row.rowType !== "item") return false;
+    const key = rowKey(row);
+    return !savedItemKeys.has(key) && !matchedActualKeys.has(key);
+  });
+
+  for (const actualRow of appendUnmatchedActualRows) {
+    const sectionName = actualRow.sectionName;
+    if (!sectionName) continue;
+
+    let sectionIndex = nextRows.findIndex(
+      (row) => row.rowType === "section" && row.sectionName === sectionName
+    );
+
+    if (sectionIndex === -1) {
+      nextRows.push({
+        code: "",
+        name: sectionName,
+        notes: "",
+        values: { ...nullValueTemplate },
+        rowType: "section",
+        sectionName,
+        sectionType: actualRow.sectionType,
+        subsectionName: "",
+        indent: 0,
+      });
+      sectionIndex = nextRows.length - 1;
+    }
+
+    let insertIndex = findSectionEndIndex(nextRows, sectionName);
+
+    if (actualRow.subsectionName) {
+      const subsectionIndex = nextRows.findIndex(
+        (row) =>
+          row.rowType === "subsection" &&
+          row.sectionName === sectionName &&
+          row.name.trim().toLowerCase() === actualRow.subsectionName.trim().toLowerCase()
+      );
+
+      let resolvedSubsectionIndex = subsectionIndex;
+      if (resolvedSubsectionIndex === -1) {
+        const sectionEnd = findSectionEndIndex(nextRows, sectionName);
+        nextRows.splice(sectionEnd, 0, {
+          code: "",
+          name: actualRow.subsectionName,
+          notes: "",
+          values: { ...nullValueTemplate },
+          rowType: "subsection",
+          sectionName,
+          sectionType: actualRow.sectionType,
+          subsectionName: "",
+          indent: 0,
+        });
+        resolvedSubsectionIndex = sectionEnd;
+      }
+
+      insertIndex = resolvedSubsectionIndex + 1;
+      while (insertIndex < nextRows.length) {
+        const row = nextRows[insertIndex];
+        if (row.rowType === "section" || row.rowType === "subsection" || row.rowType === "total" || row.rowType === "net") {
+          break;
+        }
+        insertIndex += 1;
+      }
+    }
+
+    nextRows.splice(insertIndex, 0, {
+      code: actualRow.code,
+      name: actualRow.name,
+      notes: actualRow.notes,
+      values: toSavedColumnValues(actualRow),
+      rowType: "item",
+      sectionName,
+      sectionType: actualRow.sectionType,
+      subsectionName: actualRow.subsectionName,
+      indent: actualRow.indent,
+    });
+  }
 
   return {
     ...normalizedSavedBudget,
