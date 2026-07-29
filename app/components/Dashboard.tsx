@@ -20,6 +20,7 @@ function formatCurrency(n: number): string {
 
 export default function Dashboard({ transactions, sectionBalances = [], fileName, onReset }: DashboardProps) {
   const [activeTab, setActiveTab] = useState("overview");
+  const [editableValues, setEditableValues] = useState<Record<string, string>>({});
 
   const tabs = [
     { id: "overview", label: "Overview", icon: "📊" },
@@ -32,6 +33,7 @@ export default function Dashboard({ transactions, sectionBalances = [], fileName
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const [editingCell, setEditingCell] = useState<string | null>(null);
   const PAGE_SIZE = 20;
 
   const filteredTx = transactions.filter(
@@ -43,6 +45,38 @@ export default function Dashboard({ transactions, sectionBalances = [], fileName
 
   const pagedTx = filteredTx.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(filteredTx.length / PAGE_SIZE);
+
+  const updateEditableValue = (key: string, value: string) => {
+    setEditableValues((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const renderEditableAmount = (key: string, value: number) => {
+    const displayValue = editableValues[key] ?? value.toFixed(2);
+    const parsedValue = Number(displayValue);
+    const isPositive = parsedValue >= 0;
+
+    return (
+      <div
+        onClick={() => setEditingCell(key)}
+        className="rounded px-2 py-1 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+      >
+        {editingCell === key ? (
+          <input
+            autoFocus
+            type="number"
+            value={displayValue}
+            onChange={(e) => updateEditableValue(key, e.target.value)}
+            onBlur={() => setEditingCell(null)}
+            className="w-24 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+          />
+        ) : (
+          <span className={isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+            {formatCurrency(parsedValue)}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -241,7 +275,7 @@ export default function Dashboard({ transactions, sectionBalances = [], fileName
                       <td className={`py-2 px-3 text-right font-medium whitespace-nowrap ${
                         t.amount >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                       }`}>
-                        {formatCurrency(t.amount)}
+                        {renderEditableAmount(`tx-${i}`, t.amount)}
                       </td>
                     </tr>
                   ))}

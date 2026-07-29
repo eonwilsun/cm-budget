@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useRef } from "react";
+import type { ReportData, ExpenditureItem, DebtorItem, CashAtBankItem } from "../types";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-import type { ReportData, ExpenditureItem, DebtorItem, CashAtBankItem } from "../types";
 import ExpenditureReport from "./ExpenditureReport";
 import DebtorsReport from "./DebtorsReport";
 import { readWorkbook, parseTransactionSheet, parseAmount, parseDateString } from "../lib/parseExcel";
@@ -24,6 +24,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [appendCashLoading, setAppendCashLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [editState, setEditState] = useState<{ kind: "expenditure" | "debtors" | "cash"; value: string } | null>(null);
   const cashAtBankRef = useRef<HTMLDivElement>(null);
   const expenditureRef = useRef<HTMLDivElement>(null);
   const debtorsRef = useRef<HTMLDivElement>(null);
@@ -364,6 +365,37 @@ export default function ReportsPage() {
     await processDocuments({ debtorSource, cashAtBankSummary, dayBooksReceipts, nomactx, pnl });
   };
 
+  const updateReportValue = (kind: "expenditure" | "debtors" | "cash", value: number) => {
+    setReportData((prev) => {
+      if (!prev) return prev;
+      if (kind === "expenditure") {
+        return {
+          ...prev,
+          expenditure: {
+            ...prev.expenditure,
+            total: value,
+          },
+        };
+      }
+      if (kind === "debtors") {
+        return {
+          ...prev,
+          debtors: {
+            ...prev.debtors,
+            total: value,
+          },
+        };
+      }
+      return {
+        ...prev,
+        cashAtBank: {
+          ...prev.cashAtBank,
+          total: value,
+        },
+      };
+    });
+  };
+
   const handleAppendCashAtBankUpload = async (file: File) => {
     if (!reportData) return;
 
@@ -498,12 +530,20 @@ export default function ReportsPage() {
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                   Expenditure Report
                 </h2>
-                <button
-                  onClick={() => downloadPDF(expenditureRef, "expenditure-report")}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
-                >
-                  Download PDF
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEditState({ kind: "expenditure", value: reportData.expenditure.total.toFixed(2) })}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    Edit Total
+                  </button>
+                  <button
+                    onClick={() => downloadPDF(expenditureRef, "expenditure-report")}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                  >
+                    Download PDF
+                  </button>
+                </div>
               </div>
               <div ref={expenditureRef}>
                 <ExpenditureReport data={reportData.expenditure} />
@@ -516,12 +556,20 @@ export default function ReportsPage() {
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                   Debtors Report
                 </h2>
-                <button
-                  onClick={() => downloadPDF(debtorsRef, "debtors-report")}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
-                >
-                  Download PDF
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEditState({ kind: "debtors", value: reportData.debtors.total.toFixed(2) })}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    Edit Total
+                  </button>
+                  <button
+                    onClick={() => downloadPDF(debtorsRef, "debtors-report")}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                  >
+                    Download PDF
+                  </button>
+                </div>
               </div>
               <div ref={debtorsRef}>
                 <DebtorsReport data={reportData.debtors} />
@@ -539,12 +587,20 @@ export default function ReportsPage() {
                     Current and saving accounts
                   </p>
                 </div>
-                <button
-                  onClick={() => downloadPDF(cashAtBankRef, "cash-at-bank-report")}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
-                >
-                  Download PDF
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEditState({ kind: "cash", value: reportData.cashAtBank.total.toFixed(2) })}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    Edit Total
+                  </button>
+                  <button
+                    onClick={() => downloadPDF(cashAtBankRef, "cash-at-bank-report")}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                  >
+                    Download PDF
+                  </button>
+                </div>
               </div>
               <div ref={cashAtBankRef} className="overflow-x-auto mb-6">
                 <table className="w-full text-sm">
@@ -632,6 +688,39 @@ export default function ReportsPage() {
           </div>
         )}
       </main>
+      {editState && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit total</h3>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Enter the value you want to use for this report total.</p>
+            <input
+              type="number"
+              value={editState.value}
+              onChange={(e) => setEditState((prev) => prev ? { ...prev, value: e.target.value } : prev)}
+              className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setEditState(null)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 dark:border-gray-600 dark:text-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const parsed = Number(editState.value);
+                  if (!Number.isFinite(parsed)) return;
+                  updateReportValue(editState.kind, parsed);
+                  setEditState(null);
+                }}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
