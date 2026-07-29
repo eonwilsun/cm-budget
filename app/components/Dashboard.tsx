@@ -58,7 +58,8 @@ export default function Dashboard({ transactions, sectionBalances = [], fileName
     return (
       <div
         onClick={() => setEditingCell(key)}
-        className="rounded px-2 py-1 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+        className="cursor-pointer rounded border border-transparent px-2 py-1 text-left hover:border-blue-200 hover:bg-blue-50 dark:hover:border-blue-800 dark:hover:bg-blue-950/40"
+        title="Click to edit this amount"
       >
         {editingCell === key ? (
           <input
@@ -251,6 +252,9 @@ export default function Dashboard({ transactions, sectionBalances = [], fileName
             </div>
 
             <div className="overflow-x-auto">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Tip: click any amount to edit it inline
+              </p>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700">
