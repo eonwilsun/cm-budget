@@ -25,6 +25,11 @@ type PdfTextContentItem = {
   transform?: number[];
 };
 
+type PdfLineChunk = {
+  x: number;
+  str: string;
+};
+
 function splitNominalName(name: string): { subsectionName: string; itemName: string } {
   const parts = name.split(":");
   if (parts.length < 2) {
@@ -52,7 +57,12 @@ function monthLabel(date: Date): string {
 }
 
 function isMoneyToken(value: string): boolean {
-  return value === "-" || /^[0-9,]+(?:\.\d{2})?$/.test(value);
+  const token = value.trim().replace(/[–—−]/g, "-");
+  return (
+    token === "-" ||
+    /^[+-]?[0-9,]+(?:\.\d{2})?$/.test(token) ||
+    /^\([0-9,]+(?:\.\d{2})?\)$/.test(token)
+  );
 }
 
 function looksLikeNominalTxnPrefix(line: string): boolean {
@@ -60,7 +70,7 @@ function looksLikeNominalTxnPrefix(line: string): boolean {
 }
 
 function parseNominalTxnLine(line: string): ParsedNominalTxnLine | null {
-  const compactLine = line.replace(/\s+/g, " ").trim();
+  const compactLine = line.replace(/[–—−]/g, "-").replace(/\s+/g, " ").trim();
   if (!compactLine) return null;
 
   const parts = compactLine.split(" ");
@@ -82,7 +92,7 @@ function parseNominalTxnLine(line: string): ParsedNominalTxnLine | null {
     trailingMoneyReversed.push(parts[i]);
   }
 
-  if (trailingMoneyReversed.length < 2) return null;
+  if (trailingMoneyReversed.length < 1) return null;
 
   const trailingMoney = trailingMoneyReversed.reverse();
   const moneyStartIndex = parts.length - trailingMoney.length;
@@ -90,9 +100,11 @@ function parseNominalTxnLine(line: string): ParsedNominalTxnLine | null {
   const detailsEnd = Math.max(detailsStart, moneyStartIndex);
   const rawDetails = parts.slice(detailsStart, detailsEnd).join(" ");
 
-  const creditRaw = trailingMoney[trailingMoney.length - 1] ?? "-";
-  const debitRaw = trailingMoney[trailingMoney.length - 2] ?? "-";
-  const valueRaw = trailingMoney.length >= 3 ? trailingMoney[trailingMoney.length - 3] : "-";
+  const creditRaw = trailingMoney.length >= 2 ? trailingMoney[trailingMoney.length - 1] : "-";
+  const debitRaw = trailingMoney.length >= 2 ? trailingMoney[trailingMoney.length - 2] : "-";
+  const valueRaw = trailingMoney.length >= 3
+    ? trailingMoney[trailingMoney.length - 3]
+    : trailingMoney[0] ?? "-";
 
   return {
     txnType,
@@ -497,18 +509,27 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
     const textContent = await page.getTextContent();
-    const lines = new Map<number, string[]>();
+    const lines = new Map<number, PdfLineChunk[]>();
 
     textContent.items.forEach((item: PdfTextContentItem) => {
       const yValue = item.transform?.[5];
+      const xValue = item.transform?.[4];
       const y = typeof yValue === "number" ? Math.round(yValue) : 0;
-      const line = (lines.get(y) ?? []).concat(item.str ?? "");
+      const x = typeof xValue === "number" ? xValue : 0;
+      const line = (lines.get(y) ?? []).concat({ x, str: item.str ?? "" });
       lines.set(y, line);
     });
 
     const pageLines = Array.from(lines.entries())
       .sort((a, b) => b[0] - a[0])
-      .map(([, items]) => items.join(" ").replace(/\s+/g, " ").trim())
+      .map(([, items]) =>
+        items
+          .sort((a, b) => a.x - b.x)
+          .map((chunk) => chunk.str)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim()
+      )
       .filter(Boolean);
 
     for (const line of pageLines) {
