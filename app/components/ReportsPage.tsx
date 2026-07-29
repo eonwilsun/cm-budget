@@ -44,9 +44,9 @@ export default function ReportsPage() {
     return "";
   };
 
-  const extractPdfTextLines = (textContent: any) => {
+  const extractPdfTextLines = (textContent: { items: Array<{ transform?: number[]; str: string }> }) => {
     const lines = new Map<number, string[]>();
-    textContent.items.forEach((item: any) => {
+    textContent.items.forEach((item) => {
       const y = item.transform?.[5] ? Math.round(item.transform[5]) : 0;
       const line = (lines.get(y) ?? []).concat(item.str);
       lines.set(y, line);
@@ -86,7 +86,6 @@ export default function ReportsPage() {
           continue;
         }
 
-        const lower = normalizedLine.toLowerCase();
         if (/^\s*(page|date|transaction|totals?|history balance|account balance|opening balance|closing balance|ref|statement|nominal activity|car|bank|page:)/i.test(normalizedLine)) {
           continue;
         }
@@ -178,7 +177,7 @@ export default function ReportsPage() {
   };
 
   const normalizeRowAmount = (row: Record<string, unknown>): number => {
-    const rawAmount = getRowValue(row, ["amount", "amt", "value", "total"]);
+    const rawAmount = getRowValue(row, ["amount", "amt", "value", "total", "balance", "net", "running balance"]);
     const explicitAmount = parseAmount(rawAmount);
     if (explicitAmount !== 0) {
       return explicitAmount;
@@ -190,10 +189,18 @@ export default function ReportsPage() {
     }
 
     if (typeof row.rawText === "string") {
-      return parseAmountFromRawText(row.rawText);
+      const parsedFromText = parseAmountFromRawText(row.rawText);
+      if (parsedFromText !== 0) {
+        return parsedFromText;
+      }
     }
 
-    return parseAmount(getRowValue(row, ["debit", "credit"]));
+    const fallbackAmount = parseAmount(getRowValue(row, ["debit", "credit", "dr", "cr"]));
+    if (fallbackAmount !== 0) {
+      return fallbackAmount;
+    }
+
+    return parseAmount(getRowValue(row, ["balance", "amount", "value", "total"]));
   };
 
   const normalizeRowDate = (row: Record<string, unknown>): string => {
@@ -207,6 +214,15 @@ export default function ReportsPage() {
     return String(value ?? fallback).trim();
   };
 
+  const isInterestRelated = (...values: unknown[]): boolean => {
+    const haystack = values
+      .map((value) => String(value ?? ""))
+      .join(" ")
+      .toLowerCase();
+
+    return /(?:^|\s)(bank\s+interest|interest\s*(earned|received|income|payable|charge|credit|debit)?|credit\s+interest|deposit\s+interest|savings\s+interest|int(?:\.|erest)?)(?:$|\s)/i.test(haystack);
+  };
+
   const buildExpenditureItems = (rows: Record<string, unknown>[]): ExpenditureItem[] => {
     return rows
       .map((row) => {
@@ -218,10 +234,9 @@ export default function ReportsPage() {
         const code = sectionCode || normalizeRowString(row, ["n/c", "code", "account number", "ref", "id", "nominal"], "");
         const description = normalizeRowString(row, ["description", "details", "narrative", "memo", "particulars", "text", "transaction"], "");
         const accountName = normalizeRowString(row, ["account", "bank", "card", "ledger", "nominal"], "");
-        const bankInterestMatch = /bank interest|interest/i.test(`${description} ${accountName}`);
 
         const defaultCategory = sectionName || "Other";
-        const category = bankInterestMatch
+        const category = isInterestRelated(description, accountName, sectionName, code, row.rawText)
           ? "Bank Interest"
           : normalizeRowString(row, ["category", "type", "group", "nominal", "account", "department"], defaultCategory);
 
@@ -271,7 +286,7 @@ export default function ReportsPage() {
         if (!name && !code) return null;
 
         const lowerName = name.toLowerCase();
-        const category = lowerName.includes("bank interest")
+        const category = isInterestRelated(name, code, row.rawText)
           ? "Bank Interest"
           : lowerName.includes("saving") || lowerName.includes("savings")
           ? "Saving"
@@ -426,12 +441,12 @@ export default function ReportsPage() {
       const imgWidth = 210; // A4 width in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      let yPosition = 0;
-      let pageHeight = pdf.internal.pageSize.getHeight();
+      const yPosition = 0;
+      const pageHeight = pdf.internal.pageSize.getHeight();
 
       pdf.addImage(imgData, "PNG", 0, yPosition, imgWidth, imgHeight);
 
-      let pages = Math.ceil(imgHeight / pageHeight);
+      const pages = Math.ceil(imgHeight / pageHeight);
       for (let i = 1; i < pages; i++) {
         pdf.addPage();
         pdf.addImage(
