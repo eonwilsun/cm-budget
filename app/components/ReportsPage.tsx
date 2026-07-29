@@ -8,6 +8,7 @@ import ExpenditureReport from "./ExpenditureReport";
 import DebtorsReport from "./DebtorsReport";
 import { readWorkbook, parseTransactionSheet, parseAmount, parseDateString } from "../lib/parseExcel";
 import { getPdfJs } from "../lib/pdfText";
+import { isInterestRelated } from "../lib/reportParsing";
 
 interface DocumentsInput {
   debtorSource: Record<string, unknown>[];
@@ -212,15 +213,6 @@ export default function ReportsPage() {
   const normalizeRowString = (row: Record<string, unknown>, keys: string[], fallback = ""): string => {
     const value = getRowValue(row, keys);
     return String(value ?? fallback).trim();
-  };
-
-  const isInterestRelated = (...values: unknown[]): boolean => {
-    const haystack = values
-      .map((value) => String(value ?? ""))
-      .join(" ")
-      .toLowerCase();
-
-    return /(?:^|\s)(bank\s+interest|interest\s*(earned|received|income|payable|charge|credit|debit)?|credit\s+interest|deposit\s+interest|savings\s+interest|int(?:\.|erest)?)(?:$|\s)/i.test(haystack);
   };
 
   const buildExpenditureItems = (rows: Record<string, unknown>[]): ExpenditureItem[] => {
