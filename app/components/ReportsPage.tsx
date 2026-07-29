@@ -86,7 +86,7 @@ export default function ReportsPage() {
           continue;
         }
 
-        if (/^\s*(page|date|transaction|totals?|history balance|account balance|opening balance|closing balance|ref|statement|nominal activity|car|bank|page:)/i.test(normalizedLine)) {
+        if (/^\s*(page|date|transaction|totals?|history balance|account balance|opening balance|closing balance|ref|statement|nominal activity|car|page:)/i.test(normalizedLine)) {
           continue;
         }
         if (!/[\d]/.test(normalizedLine)) {
