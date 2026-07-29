@@ -10,6 +10,21 @@ type NominalActivityEntry = {
   amount: number;
 };
 
+type ParsedNominalTxnLine = {
+  txnType: string;
+  rawDate: string;
+  rawAccount: string;
+  rawDetails: string;
+  valueRaw: string;
+  debitRaw: string;
+  creditRaw: string;
+};
+
+type PdfTextContentItem = {
+  str?: string;
+  transform?: number[];
+};
+
 function splitNominalName(name: string): { subsectionName: string; itemName: string } {
   const parts = name.split(":");
   if (parts.length < 2) {
@@ -34,6 +49,73 @@ function classifySectionType(code: string): SectionType {
 
 function monthLabel(date: Date): string {
   return date.toLocaleString("default", { month: "short" });
+}
+
+function isMoneyToken(value: string): boolean {
+  return value === "-" || /^[0-9,]+(?:\.\d{2})?$/.test(value);
+}
+
+function parseNominalTxnLine(line: string): ParsedNominalTxnLine | null {
+  const compactLine = line.replace(/\s+/g, " ").trim();
+  if (!compactLine) return null;
+
+  // Primary parser: anchor on the date and read value/debit/credit from the
+  // right-most columns. This is robust when reference/detail columns vary.
+  const primary = compactLine.match(
+    /^\s*\d+\s+(\S+)\s+(\d{2}\/\d{2}\/\d{4})\s+(\S+)\s+(.+?)\s+([0-9,]+(?:\.\d{2})?|-)\s+([0-9,]+(?:\.\d{2})?|-)\s+([0-9,]+(?:\.\d{2})?|-)\s*$/i
+  );
+
+  if (primary) {
+    const [, txnType, rawDate, rawAccount, detailBlock, valueRaw, debitRaw, creditRaw] = primary;
+    const detailParts = detailBlock.trim().split(/\s+/);
+    // Nominal lines often contain a numeric ref + account code after the account token.
+    // Drop those trailing technical tokens so category matching uses the real narrative.
+    while (detailParts.length > 1 && /^(?:\d+|[A-Z0-9\-\/]+)$/i.test(detailParts[0])) {
+      detailParts.shift();
+    }
+
+    return {
+      txnType,
+      rawDate,
+      rawAccount,
+      rawDetails: detailParts.join(" ") || detailBlock,
+      valueRaw,
+      debitRaw,
+      creditRaw,
+    };
+  }
+
+  // Fallback parser: find the trailing amount triplet and a preceding date.
+  const parts = compactLine.split(" ");
+  if (parts.length < 8) return null;
+
+  const creditRaw = parts[parts.length - 1];
+  const debitRaw = parts[parts.length - 2];
+  const valueRaw = parts[parts.length - 3];
+  if (!isMoneyToken(valueRaw) || !isMoneyToken(debitRaw) || !isMoneyToken(creditRaw)) {
+    return null;
+  }
+
+  const dateIndex = parts.findIndex((part) => /^\d{2}\/\d{2}\/\d{4}$/.test(part));
+  if (dateIndex <= 1) return null;
+
+  const txnType = parts[dateIndex - 1];
+  const rawAccount = parts[dateIndex + 1] ?? "";
+  const detailsStart = dateIndex + 2;
+  const detailsEnd = parts.length - 3;
+  const rawDetails = detailsStart < detailsEnd ? parts.slice(detailsStart, detailsEnd).join(" ") : "";
+
+  if (!rawAccount) return null;
+
+  return {
+    txnType,
+    rawDate: parts[dateIndex],
+    rawAccount,
+    rawDetails,
+    valueRaw,
+    debitRaw,
+    creditRaw,
+  };
 }
 
 function buildColumns(months: Date[], year: number | null): BudgetColumn[] {
@@ -316,9 +398,10 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
     const textContent = await page.getTextContent();
     const lines = new Map<number, string[]>();
 
-    textContent.items.forEach((item: any) => {
-      const y = item.transform?.[5] ? Math.round(item.transform[5]) : 0;
-      const line = (lines.get(y) ?? []).concat(item.str);
+    textContent.items.forEach((item: PdfTextContentItem) => {
+      const yValue = item.transform?.[5];
+      const y = typeof yValue === "number" ? Math.round(yValue) : 0;
+      const line = (lines.get(y) ?? []).concat(item.str ?? "");
       lines.set(y, line);
     });
 
@@ -335,16 +418,28 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
         continue;
       }
 
+      const codeOnlyMatch = line.match(/^n\/c\s*:\s*(\d+)$/i);
+      if (codeOnlyMatch) {
+        currentCode = codeOnlyMatch[1].trim();
+        continue;
+      }
+
+      const nameOnlyMatch = line.match(/^name\s*:\s*(.+)$/i);
+      if (nameOnlyMatch) {
+        currentName = nameOnlyMatch[1].replace(/\s+account balance\s*:?.*$/i, "").trim();
+        continue;
+      }
+
       if (/^(date|time|page|no\s+type|totals?:|history balance:|account balance:)/i.test(line)) {
         continue;
       }
 
-      const txnMatch = line.match(/^\s*\d+\s+([A-Z]{1,3})\s+(\d{2}\/\d{2}\/\d{4})\s+(\S+)\s+\S+\s+(.+?)\s+\d+\s+\S+\s+([0-9,]+(?:\.\d{2})?)\s+([0-9,]+(?:\.\d{2})?|-)+\s+([0-9,]+(?:\.\d{2})?|-)/i);
-      if (!txnMatch || !currentCode || !currentName) {
+      const parsedLine = parseNominalTxnLine(line);
+      if (!parsedLine || !currentCode || !currentName) {
         continue;
       }
 
-      const [, txnType, rawDate, rawAccount, rawDetails, valueRaw, debitRaw, creditRaw] = txnMatch;
+      const { txnType, rawDate, rawAccount, rawDetails, valueRaw, debitRaw, creditRaw } = parsedLine;
       const date = parseDateString(rawDate);
       const debit = debitRaw === "-" ? 0 : parseAmount(debitRaw);
       const credit = creditRaw === "-" ? 0 : parseAmount(creditRaw);
@@ -355,8 +450,14 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
       const upperDetails = rawDetails.toUpperCase();
       const isCreditLike = upperType.endsWith("C") || /PROPERTY\s+SOLD|CREDIT\s+NOTE|REFUND|REVERSAL/i.test(upperDetails);
 
-      if (sectionType === "income" || sectionType === "expenditure") {
-        amount = isCreditLike ? -Math.abs(value) : Math.abs(value);
+      if (sectionType === "income") {
+        // Income lines should always be positive in the report view.
+        // Some PDFs place the amount in credit/debit while value is '-'.
+        const sourceAmount = value !== 0 ? value : (credit !== 0 ? credit : debit);
+        amount = Math.abs(sourceAmount);
+      } else if (sectionType === "expenditure") {
+        const sourceAmount = value !== 0 ? value : (debit !== 0 ? debit : credit);
+        amount = isCreditLike ? -Math.abs(sourceAmount) : Math.abs(sourceAmount);
       } else if (debit > 0 || credit > 0) {
         amount = credit - debit;
       }
