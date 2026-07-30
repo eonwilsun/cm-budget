@@ -24,15 +24,29 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [appendCashLoading, setAppendCashLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [figureOverrides, setFigureOverrides] = useState<Record<string, number>>({});
   const [editState, setEditState] = useState<{
-    kind: "expenditure" | "debtors" | "cash" | "expenditure-item" | "debtor-item" | "cash-item";
+    kind: "expenditure" | "debtors" | "cash" | "expenditure-item" | "debtor-item" | "cash-item" | "figure";
     value: string;
     itemIndex?: number;
+    figureKey?: string;
+    label?: string;
   } | null>(null);
   const cashAtBankRef = useRef<HTMLDivElement>(null);
   const expenditureRef = useRef<HTMLDivElement>(null);
   const debtorsRef = useRef<HTMLDivElement>(null);
   const appendCashFileInputRef = useRef<HTMLInputElement>(null);
+
+  const getFigureValue = (key: string, fallback: number) => figureOverrides[key] ?? fallback;
+
+  const openFigureEdit = (figureKey: string, label: string, value: number) => {
+    setEditState({
+      kind: "figure",
+      figureKey,
+      label,
+      value: Number.isInteger(value) ? String(value) : value.toFixed(2),
+    });
+  };
 
   const getRowValue = (row: Record<string, unknown>, keys: string[]): unknown => {
     const lowerKeys = Object.keys(row).map((k) => k.toLowerCase());
@@ -351,6 +365,7 @@ export default function ReportsPage() {
         generatedAt: new Date().toLocaleDateString(),
       };
 
+      setFigureOverrides({});
       setReportData(newReportData);
       setAppState("display");
     } catch (error) {
@@ -664,6 +679,10 @@ export default function ReportsPage() {
         {/* DISPLAY STATE */}
         {appState === "display" && reportData && (
           <div className="space-y-8">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
+              Every visible figure can be edited. Row edits change row data; summary edits override the displayed figure directly.
+            </div>
+
             {/* Expenditure Report */}
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -672,7 +691,7 @@ export default function ReportsPage() {
                 </h2>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setEditState({ kind: "expenditure", value: reportData.expenditure.total.toFixed(2) })}
+                    onClick={() => openFigureEdit("expenditure.total", "Total Expenditure", getFigureValue("expenditure.total", reportData.expenditure.total))}
                     className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     Edit Total
@@ -688,6 +707,9 @@ export default function ReportsPage() {
               <div ref={expenditureRef}>
                 <ExpenditureReport
                   data={reportData.expenditure}
+                  figureOverrides={figureOverrides}
+                  onEditFigure={openFigureEdit}
+                  onEditTotal={() => openFigureEdit("expenditure.total", "Total Expenditure", getFigureValue("expenditure.total", reportData.expenditure.total))}
                   onEditItemAmount={(itemIndex) => {
                     const item = reportData.expenditure.items[itemIndex];
                     if (!item) return;
@@ -709,10 +731,19 @@ export default function ReportsPage() {
                 </h2>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setEditState({ kind: "debtors", value: reportData.debtors.total.toFixed(2) })}
+                    onClick={() => openFigureEdit(
+                      "debtors.outstandingTotal",
+                      "Outstanding Balance",
+                      getFigureValue(
+                        "debtors.outstandingTotal",
+                        reportData.debtors.items
+                          .filter((item) => item.status === "Outstanding")
+                          .reduce((sum, item) => sum + item.amount, 0)
+                      )
+                    )}
                     className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
-                    Edit Total
+                    Edit Outstanding
                   </button>
                   <button
                     onClick={() => downloadPDF(debtorsRef, "debtors-report")}
@@ -725,6 +756,18 @@ export default function ReportsPage() {
               <div ref={debtorsRef}>
                 <DebtorsReport
                   data={reportData.debtors}
+                  figureOverrides={figureOverrides}
+                  onEditFigure={openFigureEdit}
+                  onEditTotal={() => openFigureEdit(
+                    "debtors.outstandingTotal",
+                    "Outstanding Balance",
+                    getFigureValue(
+                      "debtors.outstandingTotal",
+                      reportData.debtors.items
+                        .filter((item) => item.status === "Outstanding")
+                        .reduce((sum, item) => sum + item.amount, 0)
+                    )
+                  )}
                   onEditItemAmount={(itemIndex) => {
                     const item = reportData.debtors.items[itemIndex];
                     if (!item) return;
@@ -751,7 +794,7 @@ export default function ReportsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setEditState({ kind: "cash", value: reportData.cashAtBank.total.toFixed(2) })}
+                    onClick={() => openFigureEdit("cash.total", "Total Cash at Bank", getFigureValue("cash.total", reportData.cashAtBank.total))}
                     className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300"
                   >
                     Edit Total
@@ -798,7 +841,18 @@ export default function ReportsPage() {
                   <tfoot>
                     <tr className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                       <td colSpan={3} className="py-3 px-3 font-bold text-gray-900 dark:text-white">Total Cash at Bank</td>
-                      <td className="py-3 px-3 text-right font-bold text-gray-900 dark:text-white">£{reportData.cashAtBank.total.toFixed(2)}</td>
+                      <td className="py-3 px-3 text-right font-bold text-gray-900 dark:text-white">
+                        <div className="flex items-center justify-end gap-2">
+                          <span>£{getFigureValue("cash.total", reportData.cashAtBank.total).toFixed(2)}</span>
+                          <button
+                            type="button"
+                            onClick={() => openFigureEdit("cash.total", "Total Cash at Bank", getFigureValue("cash.total", reportData.cashAtBank.total))}
+                            className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   </tfoot>
                 </table>
@@ -865,7 +919,9 @@ export default function ReportsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {editState.kind === "expenditure-item"
+              {editState.kind === "figure"
+                ? `Edit ${editState.label ?? "figure"}`
+                : editState.kind === "expenditure-item"
                 ? "Edit expenditure amount"
                 : editState.kind === "debtor-item"
                 ? "Edit debtor amount"
@@ -874,7 +930,9 @@ export default function ReportsPage() {
                 : "Edit total"}
             </h3>
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              {editState.kind === "expenditure-item" || editState.kind === "debtor-item" || editState.kind === "cash-item"
+              {editState.kind === "figure"
+                ? "Enter the value you want to display for this figure."
+                : editState.kind === "expenditure-item" || editState.kind === "debtor-item" || editState.kind === "cash-item"
                 ? "Enter the amount you want for this row."
                 : "Enter the value you want to use for this report total."}
             </p>
@@ -895,7 +953,13 @@ export default function ReportsPage() {
                 onClick={() => {
                   const parsed = Number(editState.value);
                   if (!Number.isFinite(parsed)) return;
-                  if (editState.kind === "expenditure-item") {
+                  if (editState.kind === "figure") {
+                    if (!editState.figureKey) return;
+                    setFigureOverrides((prev) => ({
+                      ...prev,
+                      [editState.figureKey!]: parsed,
+                    }));
+                  } else if (editState.kind === "expenditure-item") {
                     if (typeof editState.itemIndex !== "number") return;
                     updateExpenditureItemAmount(editState.itemIndex, parsed);
                   } else if (editState.kind === "debtor-item") {

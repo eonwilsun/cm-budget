@@ -6,13 +6,49 @@ import type { DebtorsReportData } from "../types";
 interface DebtorsReportProps {
   data: DebtorsReportData;
   onEditItemAmount?: (index: number) => void;
+  onEditTotal?: () => void;
+  figureOverrides?: Record<string, number>;
+  onEditFigure?: (key: string, label: string, value: number) => void;
 }
 
-export default function DebtorsReport({ data, onEditItemAmount }: DebtorsReportProps) {
+export default function DebtorsReport({
+  data,
+  onEditItemAmount,
+  onEditTotal,
+  figureOverrides,
+  onEditFigure,
+}: DebtorsReportProps) {
   const indexedItems = data.items.map((item, index) => ({
     ...item,
     sourceIndex: index,
   }));
+
+  const getFigure = (key: string, fallback: number) => figureOverrides?.[key] ?? fallback;
+
+  const renderEditableFigure = (
+    key: string,
+    label: string,
+    fallback: number,
+    display: string,
+    layout: "between" | "end" = "end"
+  ) => {
+    if (!onEditFigure) {
+      return <span>{display}</span>;
+    }
+
+    return (
+      <div className={`flex items-center gap-2 ${layout === "between" ? "justify-between" : "justify-end"}`}>
+        <span>{display}</span>
+        <button
+          type="button"
+          onClick={() => onEditFigure(key, label, getFigure(key, fallback))}
+          className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300"
+        >
+          Edit
+        </button>
+      </div>
+    );
+  };
 
   const outstandingItems = indexedItems.filter((d) => d.status === "Outstanding");
   const settledItems = indexedItems.filter((d) => d.status !== "Outstanding");
@@ -20,7 +56,6 @@ export default function DebtorsReport({ data, onEditItemAmount }: DebtorsReportP
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-8 print:p-0 print:border-0 print:bg-white">
-      {/* Header */}
       <div className="mb-8 pb-6 border-b border-gray-200 dark:border-gray-700">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
           DEBTORS REPORT
@@ -30,32 +65,30 @@ export default function DebtorsReport({ data, onEditItemAmount }: DebtorsReportP
         </p>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4 mb-8 print:grid-cols-3">
         <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg border border-orange-200 dark:border-orange-800">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Outstanding Balance</p>
-          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-            £{outstandingTotal.toFixed(2)}
-          </p>
+          <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+            {renderEditableFigure("debtors.outstandingTotal", "Outstanding Balance", outstandingTotal, `£${getFigure("debtors.outstandingTotal", outstandingTotal).toFixed(2)}`, "between")}
+          </div>
         </div>
         <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Outstanding Invoices</p>
-          <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-            {outstandingItems.length}
-          </p>
+          <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+            {renderEditableFigure("debtors.outstandingCount", "Outstanding Invoices", outstandingItems.length, String(getFigure("debtors.outstandingCount", outstandingItems.length)), "between")}
+          </div>
         </div>
         <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Debtors</p>
-          <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-            {data.items.length}
-          </p>
+          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+            {renderEditableFigure("debtors.totalCount", "Total Debtors", data.items.length, String(getFigure("debtors.totalCount", data.items.length)), "between")}
+          </div>
         </div>
       </div>
 
-      {/* Outstanding Debtors Table */}
       <div className="mb-12">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-          Outstanding Invoices ({outstandingItems.length})
+          Outstanding Invoices ({getFigure("debtors.outstandingCount", outstandingItems.length)})
         </h2>
         {outstandingItems.length > 0 ? (
           <div className="overflow-x-auto">
@@ -120,7 +153,7 @@ export default function DebtorsReport({ data, onEditItemAmount }: DebtorsReportP
                     TOTAL OUTSTANDING
                   </td>
                   <td className="py-3 px-4 text-right font-bold text-gray-900 dark:text-white">
-                    £{outstandingTotal.toFixed(2)}
+                    {renderEditableFigure("debtors.outstandingTotal", "Outstanding Balance", outstandingTotal, `£${getFigure("debtors.outstandingTotal", outstandingTotal).toFixed(2)}`)}
                   </td>
                   <td></td>
                 </tr>
@@ -136,7 +169,6 @@ export default function DebtorsReport({ data, onEditItemAmount }: DebtorsReportP
         )}
       </div>
 
-      {/* Settled Debtors */}
       {settledItems.length > 0 && (
         <div className="mb-12">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -205,7 +237,6 @@ export default function DebtorsReport({ data, onEditItemAmount }: DebtorsReportP
         </div>
       )}
 
-      {/* Aging Analysis */}
       <div className="mb-12">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Aging Analysis
@@ -243,19 +274,18 @@ export default function DebtorsReport({ data, onEditItemAmount }: DebtorsReportP
                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                   {range.label}
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {count}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  £{total.toFixed(2)}
-                </p>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {renderEditableFigure(`debtors.aging.${idx}.count`, `${range.label} Count`, count, String(getFigure(`debtors.aging.${idx}.count`, count)), "between")}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  {renderEditableFigure(`debtors.aging.${idx}.amount`, `${range.label} Amount`, total, `£${getFigure(`debtors.aging.${idx}.amount`, total).toFixed(2)}`, "between")}
+                </div>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Footer */}
       <div className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700 text-center text-xs text-gray-500 dark:text-gray-400">
         <p>This report was automatically generated. Please verify accuracy with source documents.</p>
       </div>

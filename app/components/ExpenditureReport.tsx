@@ -6,13 +6,49 @@ import type { ExpenditureReportData } from "../types";
 interface ExpenditureReportProps {
   data: ExpenditureReportData;
   onEditItemAmount?: (index: number) => void;
+  onEditTotal?: () => void;
+  figureOverrides?: Record<string, number>;
+  onEditFigure?: (key: string, label: string, value: number) => void;
 }
 
-export default function ExpenditureReport({ data, onEditItemAmount }: ExpenditureReportProps) {
+export default function ExpenditureReport({
+  data,
+  onEditItemAmount,
+  onEditTotal,
+  figureOverrides,
+  onEditFigure,
+}: ExpenditureReportProps) {
   const indexedItems = data.items.map((item, index) => ({
     ...item,
     sourceIndex: index,
   }));
+
+  const getFigure = (key: string, fallback: number) => figureOverrides?.[key] ?? fallback;
+
+  const renderEditableFigure = (
+    key: string,
+    label: string,
+    fallback: number,
+    display: string,
+    layout: "between" | "end" = "end"
+  ) => {
+    if (!onEditFigure) {
+      return <span>{display}</span>;
+    }
+
+    return (
+      <div className={`flex items-center gap-2 ${layout === "between" ? "justify-between" : "justify-end"}`}>
+        <span>{display}</span>
+        <button
+          type="button"
+          onClick={() => onEditFigure(key, label, getFigure(key, fallback))}
+          className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300"
+        >
+          Edit
+        </button>
+      </div>
+    );
+  };
 
   const groupedByCategory = indexedItems.reduce(
     (acc, item) => {
@@ -33,7 +69,6 @@ export default function ExpenditureReport({ data, onEditItemAmount }: Expenditur
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-8 print:p-0 print:border-0 print:bg-white">
-      {/* Header */}
       <div className="mb-8 pb-6 border-b border-gray-200 dark:border-gray-700">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
           EXPENDITURE REPORT
@@ -43,29 +78,27 @@ export default function ExpenditureReport({ data, onEditItemAmount }: Expenditur
         </p>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4 mb-8 print:grid-cols-3">
         <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Expenditure</p>
-          <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-            £{data.total.toFixed(2)}
-          </p>
+          <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+            {renderEditableFigure("expenditure.total", "Total Expenditure", data.total, `£${getFigure("expenditure.total", data.total).toFixed(2)}`, "between")}
+          </div>
         </div>
         <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Categories</p>
-          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-            {data.categories.length}
-          </p>
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            {renderEditableFigure("expenditure.categoriesCount", "Expenditure Categories", data.categories.length, String(getFigure("expenditure.categoriesCount", data.categories.length)), "between")}
+          </div>
         </div>
         <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Transactions</p>
-          <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-            {data.items.length}
-          </p>
+          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+            {renderEditableFigure("expenditure.transactionsCount", "Expenditure Transactions", data.items.length, String(getFigure("expenditure.transactionsCount", data.items.length)), "between")}
+          </div>
         </div>
       </div>
 
-      {/* Category Summary Table */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
           Summary by Category
@@ -98,13 +131,13 @@ export default function ExpenditureReport({ data, onEditItemAmount }: Expenditur
                     {cat.category}
                   </td>
                   <td className="py-3 px-4 text-right text-gray-600 dark:text-gray-400">
-                    {cat.items.length}
+                    {renderEditableFigure(`expenditure.category.${cat.category}.count`, `${cat.category} Count`, cat.items.length, String(getFigure(`expenditure.category.${cat.category}.count`, cat.items.length)))}
                   </td>
                   <td className="py-3 px-4 text-right text-gray-900 dark:text-white font-semibold">
-                    £{cat.total.toFixed(2)}
+                    {renderEditableFigure(`expenditure.category.${cat.category}.amount`, `${cat.category} Amount`, cat.total, `£${getFigure(`expenditure.category.${cat.category}.amount`, cat.total).toFixed(2)}`)}
                   </td>
                   <td className="py-3 px-4 text-right text-gray-600 dark:text-gray-400">
-                    {((cat.total / data.total) * 100).toFixed(1)}%
+                    {renderEditableFigure(`expenditure.category.${cat.category}.percent`, `${cat.category} Percentage`, data.total === 0 ? 0 : (cat.total / data.total) * 100, `${getFigure(`expenditure.category.${cat.category}.percent`, data.total === 0 ? 0 : (cat.total / data.total) * 100).toFixed(1)}%`)}
                   </td>
                 </tr>
               ))}
@@ -115,13 +148,13 @@ export default function ExpenditureReport({ data, onEditItemAmount }: Expenditur
                   TOTAL
                 </td>
                 <td className="py-3 px-4 text-right font-bold text-gray-900 dark:text-white">
-                  {data.items.length}
+                  {renderEditableFigure("expenditure.transactionsCount", "Expenditure Transactions", data.items.length, String(getFigure("expenditure.transactionsCount", data.items.length)))}
                 </td>
                 <td className="py-3 px-4 text-right font-bold text-gray-900 dark:text-white">
-                  £{data.total.toFixed(2)}
+                  {renderEditableFigure("expenditure.total", "Total Expenditure", data.total, `£${getFigure("expenditure.total", data.total).toFixed(2)}`)}
                 </td>
                 <td className="py-3 px-4 text-right font-bold text-gray-900 dark:text-white">
-                  100%
+                  {renderEditableFigure("expenditure.totalPercent", "Expenditure Total Percentage", 100, `${getFigure("expenditure.totalPercent", 100).toFixed(1)}%`)}
                 </td>
               </tr>
             </tfoot>
@@ -129,12 +162,16 @@ export default function ExpenditureReport({ data, onEditItemAmount }: Expenditur
         </div>
       </div>
 
-      {/* Detailed Transactions by Category */}
       <div className="space-y-8">
         {categoryTotals.map((cat) => (
           <div key={cat.category} className="page-break-inside-avoid">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 pb-2 border-b border-gray-300 dark:border-gray-700">
-              {cat.category} - £{cat.total.toFixed(2)}
+              <span className="flex items-center justify-between gap-3">
+                <span>{cat.category}</span>
+                <span>
+                  {renderEditableFigure(`expenditure.category.${cat.category}.amount`, `${cat.category} Amount`, cat.total, `£${getFigure(`expenditure.category.${cat.category}.amount`, cat.total).toFixed(2)}`)}
+                </span>
+              </span>
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -192,7 +229,7 @@ export default function ExpenditureReport({ data, onEditItemAmount }: Expenditur
                       Subtotal
                     </td>
                     <td className="py-2 px-3 text-right font-bold text-gray-900 dark:text-white">
-                      £{cat.total.toFixed(2)}
+                      {renderEditableFigure(`expenditure.category.${cat.category}.amount`, `${cat.category} Amount`, cat.total, `£${getFigure(`expenditure.category.${cat.category}.amount`, cat.total).toFixed(2)}`)}
                     </td>
                   </tr>
                 </tfoot>
@@ -202,7 +239,6 @@ export default function ExpenditureReport({ data, onEditItemAmount }: Expenditur
         ))}
       </div>
 
-      {/* Footer */}
       <div className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700 text-center text-xs text-gray-500 dark:text-gray-400">
         <p>This report was automatically generated. Please verify accuracy with source documents.</p>
       </div>
