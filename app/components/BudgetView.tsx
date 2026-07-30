@@ -841,25 +841,25 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   const handleRowTextChange = useCallback(
     (rowIndex: number, field: "code" | "name" | "notes", value: string) => {
       if (!onBudgetChange) return;
-      const nextRows = budget.rows.map((row, index) => (
+      const nextRows = budgetWithSharedBreakdown.rows.map((row, index) => (
         index === rowIndex ? { ...row, [field]: value } : row
       ));
-      onBudgetChange({ ...budget, rows: nextRows });
+      onBudgetChange({ ...budgetWithSharedBreakdown, rows: nextRows });
     },
-    [budget, onBudgetChange]
+    [budgetWithSharedBreakdown, onBudgetChange]
   );
 
   const handleRowValueChange = useCallback(
     (rowIndex: number, columnKey: string, value: number | null) => {
       if (!onBudgetChange) return;
-      const nextRows = budget.rows.map((row, index) => (
+      const nextRows = budgetWithSharedBreakdown.rows.map((row, index) => (
         index === rowIndex
           ? { ...row, values: { ...row.values, [columnKey]: value } }
           : row
       ));
-      onBudgetChange({ ...budget, rows: nextRows });
+      onBudgetChange({ ...budgetWithSharedBreakdown, rows: nextRows });
     },
-    [budget, onBudgetChange]
+    [budgetWithSharedBreakdown, onBudgetChange]
   );
 
   // ── UI helpers ────────────────────────────────────────────────────────────

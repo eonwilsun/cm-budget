@@ -535,9 +535,35 @@ export function mergeActualsIntoSavedBudget(
     });
   }
 
+  const monthColumns = normalizedSavedBudget.columns.filter((column) => column.monthIndex !== null);
+  const totalColumns = normalizedSavedBudget.columns.filter((column) => column.isTotal);
+
+  const rowsWithRecomputedItemTotals = nextRows.map((row) => {
+    if (row.rowType !== "item") {
+      return row;
+    }
+
+    const monthValues = monthColumns.map((column) => row.values[column.key]);
+    const hasAnyMonthValue = monthValues.some((value) => typeof value === "number" && value !== 0);
+    if (!hasAnyMonthValue || totalColumns.length === 0) {
+      return row;
+    }
+
+    const recomputedTotal = monthValues.reduce((sum, value) => sum + (value ?? 0), 0);
+    const nextValues = { ...row.values };
+    for (const totalColumn of totalColumns) {
+      nextValues[totalColumn.key] = recomputedTotal;
+    }
+
+    return {
+      ...row,
+      values: nextValues,
+    };
+  });
+
   return {
     ...normalizedSavedBudget,
-    rows: nextRows,
+    rows: rowsWithRecomputedItemTotals,
   };
 }
 
