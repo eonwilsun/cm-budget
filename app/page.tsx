@@ -66,6 +66,14 @@ export default function Home() {
     persistBudget(normalizedBudget);
   }, []);
 
+  const handleBudgetChange = useCallback((nextBudget: ParsedBudget) => {
+    const normalizedBudget = normalizeBudgetSubsections(nextBudget);
+    setBudgetData(normalizedBudget);
+    if (isViewingSavedBudget) {
+      persistBudget(normalizedBudget);
+    }
+  }, [isViewingSavedBudget, persistBudget]);
+
   const openSavedBudget = useCallback(() => {
     if (!savedBudget) return;
     setError(null);
@@ -384,7 +392,7 @@ export default function Home() {
 
         {/* ── BUDGET REPORT ─────────────────────────────────────────────── */}
         {appState === "budget" && budgetData && (
-          <BudgetView budget={budgetData} fileName={fileName} onReset={handleReset} isSavedBudget={isViewingSavedBudget} hasSavedBudget={savedBudget !== null} onBudgetChange={isViewingSavedBudget ? persistBudget : undefined} onSaveAsSavedBudget={!isViewingSavedBudget ? saveCurrentBudget : undefined} onClearSavedBudget={!isViewingSavedBudget && savedBudget ? clearSavedBudget : undefined} />
+          <BudgetView budget={budgetData} fileName={fileName} onReset={handleReset} isSavedBudget={isViewingSavedBudget} hasSavedBudget={savedBudget !== null} onBudgetChange={handleBudgetChange} onSaveAsSavedBudget={!isViewingSavedBudget ? saveCurrentBudget : undefined} onClearSavedBudget={!isViewingSavedBudget && savedBudget ? clearSavedBudget : undefined} />
         )}
       </main>
 

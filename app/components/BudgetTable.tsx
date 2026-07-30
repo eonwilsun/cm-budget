@@ -10,6 +10,7 @@ interface BudgetTableProps {
   onToggleSection: (name: string) => void;
   onToggleSubsection: (sectionName: string, subsName: string) => void;
   editable?: boolean;
+  quickValueEdit?: boolean;
   onRowTextChange?: (rowIndex: number, field: "code" | "name" | "notes", value: string) => void;
   onRowValueChange?: (rowIndex: number, columnKey: string, value: number | null) => void;
   stickyTop?: string;
@@ -52,10 +53,37 @@ export function sectionAnchorId(name: string) {
 }
 
 const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
-  ({ budget, expandedSections, expandedSubsections, onToggleSection, onToggleSubsection, editable = false, onRowTextChange, onRowValueChange, stickyTop = "12rem" }, ref) => {
+  ({ budget, expandedSections, expandedSubsections, onToggleSection, onToggleSubsection, editable = false, quickValueEdit = false, onRowTextChange, onRowValueChange, stickyTop = "12rem" }, ref) => {
+    const [editingCell, setEditingCell] = React.useState<{ rowIndex: number; columnKey: string } | null>(null);
+    const [editingText, setEditingText] = React.useState("");
+
     const valueCols: BudgetColumn[] = budget.columns.filter(
       (c) => c.isBudget || c.monthIndex !== null || c.isTotal
     );
+
+    const beginQuickEdit = (rowIndex: number, columnKey: string, value: number | null) => {
+      setEditingCell({ rowIndex, columnKey });
+      setEditingText(value === null ? "" : String(value));
+    };
+
+    const commitQuickEdit = (rowIndex: number, columnKey: string) => {
+      const raw = editingText.trim();
+      const normalized = raw.replace(/,/g, "");
+      const parsed = normalized === "" ? null : Number(normalized);
+      if (normalized !== "" && Number.isNaN(parsed)) {
+        setEditingCell(null);
+        setEditingText("");
+        return;
+      }
+      onRowValueChange?.(rowIndex, columnKey, parsed);
+      setEditingCell(null);
+      setEditingText("");
+    };
+
+    const cancelQuickEdit = () => {
+      setEditingCell(null);
+      setEditingText("");
+    };
 
     const normalizedExpandedSections = new Set(
       Array.from(expandedSections).map((name) => normalizeExpandKeyPart(name))
@@ -260,6 +288,12 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                   </td>
                   {valueCols.map((col) => {
                     const v = row.values[col.key] ?? null;
+                    const quickEditing =
+                      !editable &&
+                      quickValueEdit &&
+                      editingCell?.rowIndex === idx &&
+                      editingCell?.columnKey === col.key;
+
                     return (
                       <td
                         key={col.key}
@@ -276,6 +310,32 @@ const BudgetTable = forwardRef<HTMLDivElement, BudgetTableProps>(
                             }}
                             className="w-20 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-1.5 py-1 text-right text-xs text-gray-700 dark:text-gray-200"
                           />
+                        ) : quickEditing ? (
+                          <input
+                            type="text"
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            onBlur={() => commitQuickEdit(idx, col.key)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                commitQuickEdit(idx, col.key);
+                              }
+                              if (e.key === "Escape") {
+                                cancelQuickEdit();
+                              }
+                            }}
+                            autoFocus
+                            className="w-20 rounded border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-900 px-1.5 py-1 text-right text-xs text-gray-700 dark:text-gray-200"
+                          />
+                        ) : quickValueEdit ? (
+                          <button
+                            type="button"
+                            onClick={() => beginQuickEdit(idx, col.key, v)}
+                            className="w-full text-right hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded px-1"
+                            title="Click to edit"
+                          >
+                            {fmt(v)}
+                          </button>
                         ) : (
                           fmt(v)
                         )}

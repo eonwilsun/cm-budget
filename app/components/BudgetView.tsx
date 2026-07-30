@@ -1006,6 +1006,11 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
             Click a section or subsection header row to expand / collapse it. Use <strong>Expand All / Collapse All</strong> in the nav bar above.
           </p>
+          {onBudgetChange && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-3">
+              Tip: click any numeric value in an item row to manually override it.
+            </p>
+          )}
           {isSavedBudget && editMode && (
             <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
               Editing mode is on. Change names, codes, or monthly figures here and the saved budget will be updated automatically.
@@ -1019,6 +1024,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
               onToggleSection={toggleSection}
               onToggleSubsection={toggleSubsection}
               editable={isSavedBudget && editMode}
+              quickValueEdit={Boolean(onBudgetChange) && !(isSavedBudget && editMode)}
               onRowTextChange={handleRowTextChange}
               onRowValueChange={handleRowValueChange}
               stickyTop="0"
