@@ -39,7 +39,8 @@ export default function ReportsPage() {
       }
     }
 
-    if (typeof row.rawText === "string") {
+    const wantsTextFallback = keys.some((key) => /text|description|details|memo|narrative|transaction|particulars/i.test(key));
+    if (wantsTextFallback && typeof row.rawText === "string") {
       return row.rawText;
     }
 
@@ -77,6 +78,15 @@ export default function ReportsPage() {
 
       for (const line of pageLines) {
         const normalizedLine = line.trim();
+        const combinedMetaMatch = normalizedLine.match(
+          /^n\/c\s*:\s*(\d+)\s+name\s*:\s*(.*?)\s+account\s+balance\s*:/i
+        );
+        if (combinedMetaMatch) {
+          sectionCode = combinedMetaMatch[1].trim();
+          sectionName = combinedMetaMatch[2].trim();
+          continue;
+        }
+
         const ncodeMatch = normalizedLine.match(/^n\/c\s*[:\s]+(.+)$/i);
         if (ncodeMatch) {
           sectionCode = ncodeMatch[1].trim();
