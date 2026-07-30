@@ -5,11 +5,17 @@ import type { DebtorsReportData } from "../types";
 
 interface DebtorsReportProps {
   data: DebtorsReportData;
+  onEditItemAmount?: (index: number) => void;
 }
 
-export default function DebtorsReport({ data }: DebtorsReportProps) {
-  const outstandingItems = data.items.filter((d) => d.status === "Outstanding");
-  const settledItems = data.items.filter((d) => d.status !== "Outstanding");
+export default function DebtorsReport({ data, onEditItemAmount }: DebtorsReportProps) {
+  const indexedItems = data.items.map((item, index) => ({
+    ...item,
+    sourceIndex: index,
+  }));
+
+  const outstandingItems = indexedItems.filter((d) => d.status === "Outstanding");
+  const settledItems = indexedItems.filter((d) => d.status !== "Outstanding");
   const outstandingTotal = outstandingItems.reduce((sum, item) => sum + item.amount, 0);
 
   return (
@@ -89,7 +95,18 @@ export default function DebtorsReport({ data }: DebtorsReportProps) {
                       {item.date}
                     </td>
                     <td className="py-3 px-4 text-right font-semibold text-gray-900 dark:text-white">
-                      £{item.amount.toFixed(2)}
+                      <div className="flex items-center justify-end gap-2">
+                        <span>£{item.amount.toFixed(2)}</span>
+                        {onEditItemAmount && (
+                          <button
+                            type="button"
+                            onClick={() => onEditItemAmount(item.sourceIndex)}
+                            className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-gray-500 dark:text-gray-500 text-sm">
                       {item.notes}
@@ -162,7 +179,18 @@ export default function DebtorsReport({ data }: DebtorsReportProps) {
                       {item.date}
                     </td>
                     <td className="py-2 px-3 text-right font-semibold text-gray-900 dark:text-white">
-                      £{item.amount.toFixed(2)}
+                      <div className="flex items-center justify-end gap-2">
+                        <span>£{item.amount.toFixed(2)}</span>
+                        {onEditItemAmount && (
+                          <button
+                            type="button"
+                            onClick={() => onEditItemAmount(item.sourceIndex)}
+                            className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="py-2 px-3">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400">

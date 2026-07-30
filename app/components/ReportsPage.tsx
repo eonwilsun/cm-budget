@@ -24,7 +24,11 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [appendCashLoading, setAppendCashLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [editState, setEditState] = useState<{ kind: "expenditure" | "debtors" | "cash"; value: string } | null>(null);
+  const [editState, setEditState] = useState<{
+    kind: "expenditure" | "debtors" | "cash" | "expenditure-item" | "debtor-item" | "cash-item";
+    value: string;
+    itemIndex?: number;
+  } | null>(null);
   const cashAtBankRef = useRef<HTMLDivElement>(null);
   const expenditureRef = useRef<HTMLDivElement>(null);
   const debtorsRef = useRef<HTMLDivElement>(null);
@@ -379,28 +383,154 @@ export default function ReportsPage() {
     setReportData((prev) => {
       if (!prev) return prev;
       if (kind === "expenditure") {
+        const currentTotal = prev.expenditure.items.reduce((sum, item) => sum + item.amount, 0);
+        if (currentTotal === 0) {
+          return {
+            ...prev,
+            expenditure: {
+              ...prev.expenditure,
+              total: value,
+            },
+          };
+        }
+
+        const ratio = value / currentTotal;
+        const updatedItems = prev.expenditure.items.map((item) => ({
+          ...item,
+          amount: item.amount * ratio,
+        }));
+
         return {
           ...prev,
           expenditure: {
             ...prev.expenditure,
-            total: value,
+            items: updatedItems,
+            total: updatedItems.reduce((sum, item) => sum + item.amount, 0),
           },
         };
       }
       if (kind === "debtors") {
+        const currentTotal = prev.debtors.items.reduce((sum, item) => sum + item.amount, 0);
+        if (currentTotal === 0) {
+          return {
+            ...prev,
+            debtors: {
+              ...prev.debtors,
+              total: value,
+            },
+          };
+        }
+
+        const ratio = value / currentTotal;
+        const updatedItems = prev.debtors.items.map((item) => ({
+          ...item,
+          amount: item.amount * ratio,
+        }));
+
         return {
           ...prev,
           debtors: {
             ...prev.debtors,
+            items: updatedItems,
+            total: updatedItems.reduce((sum, item) => sum + item.amount, 0),
+            outstandingCount: updatedItems.filter((d) => d.status.toLowerCase().includes("outstanding")).length,
+          },
+        };
+      }
+
+      const currentTotal = prev.cashAtBank.items.reduce((sum, item) => sum + item.balance, 0);
+      if (currentTotal === 0) {
+        return {
+          ...prev,
+          cashAtBank: {
+            ...prev.cashAtBank,
             total: value,
           },
         };
       }
+
+      const ratio = value / currentTotal;
+      const updatedItems = prev.cashAtBank.items.map((item) => ({
+        ...item,
+        balance: item.balance * ratio,
+      }));
+
       return {
         ...prev,
         cashAtBank: {
           ...prev.cashAtBank,
-          total: value,
+          items: updatedItems,
+          total: updatedItems.reduce((sum, item) => sum + item.balance, 0),
+        },
+      };
+    });
+  };
+
+  const updateExpenditureItemAmount = (itemIndex: number, amount: number) => {
+    setReportData((prev) => {
+      if (!prev) return prev;
+
+      const updatedItems = prev.expenditure.items.map((item, index) => {
+        if (index !== itemIndex) return item;
+        return {
+          ...item,
+          amount,
+        };
+      });
+
+      return {
+        ...prev,
+        expenditure: {
+          ...prev.expenditure,
+          items: updatedItems,
+          total: updatedItems.reduce((sum, item) => sum + item.amount, 0),
+        },
+      };
+    });
+  };
+
+  const updateDebtorItemAmount = (itemIndex: number, amount: number) => {
+    setReportData((prev) => {
+      if (!prev) return prev;
+
+      const updatedItems = prev.debtors.items.map((item, index) => {
+        if (index !== itemIndex) return item;
+        return {
+          ...item,
+          amount,
+        };
+      });
+
+      return {
+        ...prev,
+        debtors: {
+          ...prev.debtors,
+          items: updatedItems,
+          total: updatedItems.reduce((sum, item) => sum + item.amount, 0),
+          outstandingCount: updatedItems.filter((d) => d.status.toLowerCase().includes("outstanding")).length,
+        },
+      };
+    });
+  };
+
+  const updateCashItemBalance = (itemIndex: number, balance: number) => {
+    setReportData((prev) => {
+      if (!prev) return prev;
+
+      const updatedItems = prev.cashAtBank.items.map((item, index) => {
+        if (index !== itemIndex) return item;
+        return {
+          ...item,
+          balance,
+        };
+      });
+
+      return {
+        ...prev,
+        cashAtBank: {
+          ...prev.cashAtBank,
+          items: updatedItems,
+          total: updatedItems.reduce((sum, item) => sum + item.balance, 0),
         },
       };
     });
@@ -556,7 +686,18 @@ export default function ReportsPage() {
                 </div>
               </div>
               <div ref={expenditureRef}>
-                <ExpenditureReport data={reportData.expenditure} />
+                <ExpenditureReport
+                  data={reportData.expenditure}
+                  onEditItemAmount={(itemIndex) => {
+                    const item = reportData.expenditure.items[itemIndex];
+                    if (!item) return;
+                    setEditState({
+                      kind: "expenditure-item",
+                      itemIndex,
+                      value: item.amount.toFixed(2),
+                    });
+                  }}
+                />
               </div>
             </div>
 
@@ -582,7 +723,18 @@ export default function ReportsPage() {
                 </div>
               </div>
               <div ref={debtorsRef}>
-                <DebtorsReport data={reportData.debtors} />
+                <DebtorsReport
+                  data={reportData.debtors}
+                  onEditItemAmount={(itemIndex) => {
+                    const item = reportData.debtors.items[itemIndex];
+                    if (!item) return;
+                    setEditState({
+                      kind: "debtor-item",
+                      itemIndex,
+                      value: item.amount.toFixed(2),
+                    });
+                  }}
+                />
               </div>
             </div>
 
@@ -628,7 +780,18 @@ export default function ReportsPage() {
                         <td className="py-2 px-3 text-gray-900 dark:text-white font-mono">{item.code}</td>
                         <td className="py-2 px-3 text-gray-900 dark:text-white">{item.name}</td>
                         <td className="py-2 px-3 text-gray-600 dark:text-gray-400">{item.category}</td>
-                        <td className="py-2 px-3 text-right font-semibold text-gray-900 dark:text-white">£{item.balance.toFixed(2)}</td>
+                        <td className="py-2 px-3 text-right font-semibold text-gray-900 dark:text-white">
+                          <div className="flex items-center justify-end gap-2">
+                            <span>£{item.balance.toFixed(2)}</span>
+                            <button
+                              type="button"
+                              onClick={() => setEditState({ kind: "cash-item", itemIndex: idx, value: item.balance.toFixed(2) })}
+                              className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -701,8 +864,20 @@ export default function ReportsPage() {
       {editState && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit total</h3>
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Enter the value you want to use for this report total.</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {editState.kind === "expenditure-item"
+                ? "Edit expenditure amount"
+                : editState.kind === "debtor-item"
+                ? "Edit debtor amount"
+                : editState.kind === "cash-item"
+                ? "Edit cash balance"
+                : "Edit total"}
+            </h3>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              {editState.kind === "expenditure-item" || editState.kind === "debtor-item" || editState.kind === "cash-item"
+                ? "Enter the amount you want for this row."
+                : "Enter the value you want to use for this report total."}
+            </p>
             <input
               type="number"
               value={editState.value}
@@ -720,7 +895,18 @@ export default function ReportsPage() {
                 onClick={() => {
                   const parsed = Number(editState.value);
                   if (!Number.isFinite(parsed)) return;
-                  updateReportValue(editState.kind, parsed);
+                  if (editState.kind === "expenditure-item") {
+                    if (typeof editState.itemIndex !== "number") return;
+                    updateExpenditureItemAmount(editState.itemIndex, parsed);
+                  } else if (editState.kind === "debtor-item") {
+                    if (typeof editState.itemIndex !== "number") return;
+                    updateDebtorItemAmount(editState.itemIndex, parsed);
+                  } else if (editState.kind === "cash-item") {
+                    if (typeof editState.itemIndex !== "number") return;
+                    updateCashItemBalance(editState.itemIndex, parsed);
+                  } else {
+                    updateReportValue(editState.kind, parsed);
+                  }
                   setEditState(null);
                 }}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"

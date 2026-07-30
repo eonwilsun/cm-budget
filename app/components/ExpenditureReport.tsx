@@ -5,10 +5,16 @@ import type { ExpenditureReportData } from "../types";
 
 interface ExpenditureReportProps {
   data: ExpenditureReportData;
+  onEditItemAmount?: (index: number) => void;
 }
 
-export default function ExpenditureReport({ data }: ExpenditureReportProps) {
-  const groupedByCategory = data.items.reduce(
+export default function ExpenditureReport({ data, onEditItemAmount }: ExpenditureReportProps) {
+  const indexedItems = data.items.map((item, index) => ({
+    ...item,
+    sourceIndex: index,
+  }));
+
+  const groupedByCategory = indexedItems.reduce(
     (acc, item) => {
       if (!acc[item.category]) {
         acc[item.category] = [];
@@ -16,7 +22,7 @@ export default function ExpenditureReport({ data }: ExpenditureReportProps) {
       acc[item.category].push(item);
       return acc;
     },
-    {} as Record<string, typeof data.items>
+    {} as Record<string, typeof indexedItems>
   );
 
   const categoryTotals = Object.entries(groupedByCategory).map(([category, items]) => ({
@@ -164,7 +170,18 @@ export default function ExpenditureReport({ data }: ExpenditureReportProps) {
                         {item.account}
                       </td>
                       <td className="py-2 px-3 text-right font-semibold text-gray-900 dark:text-white">
-                        £{item.amount.toFixed(2)}
+                        <div className="flex items-center justify-end gap-2">
+                          <span>£{item.amount.toFixed(2)}</span>
+                          {onEditItemAmount && (
+                            <button
+                              type="button"
+                              onClick={() => onEditItemAmount(item.sourceIndex)}
+                              className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
