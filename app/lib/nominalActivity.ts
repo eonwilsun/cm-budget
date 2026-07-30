@@ -134,16 +134,26 @@ function parseLooseNominalTxnLine(line: string): LooseNominalTxnLine | null {
   const compactLine = line.replace(/[–—−]/g, "-").replace(/\s+/g, " ").trim();
   if (!compactLine) return null;
 
+  // Guard against summary lines that can carry large balances and would
+  // otherwise inflate income/expenditure totals.
+  if (/\b(balance|history|totals?|opening|closing|brought\s+forward|carried\s+forward)\b/i.test(compactLine)) {
+    return null;
+  }
+
   const dateMatch = compactLine.match(/\b(\d{2}\/\d{2}\/\d{4})\b/);
   if (!dateMatch) return null;
 
   const tokens = compactLine.split(" ");
-  const amountToken = [...tokens].reverse().find((token) => isMoneyToken(token) && token !== "-");
-  if (!amountToken) return null;
-
   const dateToken = dateMatch[1];
   const dateIndex = tokens.indexOf(dateToken);
-  if (dateIndex === -1) return null;
+  if (dateIndex <= 1) return null;
+
+  // Loose fallback should still look transaction-like: sequence number + type + date.
+  if (!/^\d+$/.test(tokens[0])) return null;
+  if (!/^[A-Z]{1,4}$/i.test(tokens[dateIndex - 1] ?? "")) return null;
+
+  const amountToken = [...tokens].reverse().find((token) => isMoneyToken(token) && token !== "-");
+  if (!amountToken) return null;
 
   const accountToken = tokens[dateIndex + 1] ?? "";
   return {
