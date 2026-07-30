@@ -90,10 +90,17 @@ function parseNominalTxnLine(line: string): ParsedNominalTxnLine | null {
   const rawAccount = parts[dateIndex + 1] ?? "";
   if (!rawAccount) return null;
 
+  // Some layouts append status flags (for example "R" or "N") after numeric
+  // columns. Skip those first so we can still read [value, debit, credit].
+  let lastMoneyIndex = parts.length - 1;
+  while (lastMoneyIndex > dateIndex + 1 && !isMoneyToken(parts[lastMoneyIndex])) {
+    lastMoneyIndex -= 1;
+  }
+
   // Collect trailing money-like tokens from the right. Different nominal PDF
   // layouts may include either [value, debit, credit] or just [debit, credit].
   const trailingMoneyReversed: string[] = [];
-  for (let i = parts.length - 1; i > dateIndex + 1; i -= 1) {
+  for (let i = lastMoneyIndex; i > dateIndex + 1; i -= 1) {
     if (!isMoneyToken(parts[i])) break;
     trailingMoneyReversed.push(parts[i]);
   }
@@ -595,11 +602,6 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
         pendingTxnPrefix = "";
       }
 
-      if (!parsedLine && looksLikeNominalTxnPrefix(line)) {
-        pendingTxnPrefix = line;
-        continue;
-      }
-
       if (!parsedLine && currentCode && currentName) {
         const looseLine = parseLooseNominalTxnLine(line);
         if (looseLine) {
@@ -617,6 +619,11 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
             continue;
           }
         }
+      }
+
+      if (!parsedLine && looksLikeNominalTxnPrefix(line)) {
+        pendingTxnPrefix = line;
+        continue;
       }
 
       if (!parsedLine || !currentCode || !currentName) {
