@@ -16,6 +16,11 @@ const SECTION_COLORS = [
 
 interface BudgetDashboardProps {
   budget: ParsedBudget;
+  editable?: boolean;
+  summaryOverrides?: Record<string, number>;
+  headingOverrides?: Record<string, number>;
+  onSummaryOverrideChange?: (key: string, value: number) => void;
+  onHeadingOverrideChange?: (heading: string, value: number) => void;
 }
 
 function fmt(n: number) {
@@ -34,9 +39,19 @@ function sumValues(rows: BudgetRow[], colKeys: string[]): number {
   }, 0);
 }
 
-export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
+export default function BudgetDashboard({
+  budget,
+  editable = false,
+  summaryOverrides = {},
+  headingOverrides = {},
+  onSummaryOverrideChange,
+  onHeadingOverrideChange,
+}: BudgetDashboardProps) {
   const sharedBudget = getSharedBudgetConfig();
   const [exporting, setExporting] = useState<string | null>(null);
+  const [editingSummaryKey, setEditingSummaryKey] = useState<string | null>(null);
+  const [editingHeading, setEditingHeading] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
   const monthlyChartRef = useRef<HTMLDivElement>(null);
   const pieChartRef = useRef<HTMLDivElement>(null);
   const barChartRef = useRef<HTMLDivElement>(null);
@@ -61,12 +76,12 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   const netActual = totalActualIncome - totalActualExpend;
 
   const summaryCards = [
-    { label: `Budget ${sharedBudget.year}`, value: fmt(budgetTotalForCards), color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950", border: "border-blue-200 dark:border-blue-800" },
-    { label: "Budget Expenditure",value: fmt(totalActualExpend), color: "text-red-600 dark:text-red-400",      bg: "bg-red-50 dark:bg-red-950",       border: "border-red-200 dark:border-red-800" },
-    { label: "Budget Net",        value: fmt(netBudget),         color: netBudget >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400", bg: netBudget >= 0 ? "bg-emerald-50 dark:bg-emerald-950" : "bg-orange-50 dark:bg-orange-950", border: netBudget >= 0 ? "border-emerald-200 dark:border-emerald-800" : "border-orange-200 dark:border-orange-800" },
-    { label: "Actual Income",     value: fmt(totalActualIncome), color: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-950",     border: "border-blue-200 dark:border-blue-800" },
-    { label: "Actual Expenditure",value: fmt(totalActualExpend), color: "text-red-600 dark:text-red-400",      bg: "bg-red-50 dark:bg-red-950",       border: "border-red-200 dark:border-red-800" },
-    { label: "Actual Net",        value: fmt(netActual),         color: netActual >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400", bg: netActual >= 0 ? "bg-emerald-50 dark:bg-emerald-950" : "bg-orange-50 dark:bg-orange-950", border: netActual >= 0 ? "border-emerald-200 dark:border-emerald-800" : "border-orange-200 dark:border-orange-800" },
+    { key: "budget-total", label: `Budget ${sharedBudget.year}`, raw: budgetTotalForCards, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950", border: "border-blue-200 dark:border-blue-800" },
+    { key: "budget-expenditure", label: "Budget Expenditure", raw: totalActualExpend, color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950", border: "border-red-200 dark:border-red-800" },
+    { key: "budget-net", label: "Budget Net", raw: netBudget, color: netBudget >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400", bg: netBudget >= 0 ? "bg-emerald-50 dark:bg-emerald-950" : "bg-orange-50 dark:bg-orange-950", border: netBudget >= 0 ? "border-emerald-200 dark:border-emerald-800" : "border-orange-200 dark:border-orange-800" },
+    { key: "actual-income", label: "Actual Income", raw: totalActualIncome, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950", border: "border-blue-200 dark:border-blue-800" },
+    { key: "actual-expenditure", label: "Actual Expenditure", raw: totalActualExpend, color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-950", border: "border-red-200 dark:border-red-800" },
+    { key: "actual-net", label: "Actual Net", raw: netActual, color: netActual >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400", bg: netActual >= 0 ? "bg-emerald-50 dark:bg-emerald-950" : "bg-orange-50 dark:bg-orange-950", border: netActual >= 0 ? "border-emerald-200 dark:border-emerald-800" : "border-orange-200 dark:border-orange-800" },
   ];
 
   // Income vs Expenditure by month
@@ -85,9 +100,50 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
   }
 
   const sectionData = Array.from(headingTotals.entries())
-    .map(([name, value]) => ({ name, value: Math.round(value) }))
+    .map(([name, value]) => ({
+      name,
+      value: Math.round(headingOverrides[name] ?? value),
+    }))
     .filter((item) => item.value > 0)
     .sort((a, b) => b.value - a.value);
+
+  const beginSummaryEdit = (key: string, value: number) => {
+    setEditingSummaryKey(key);
+    setEditingHeading(null);
+    setEditingValue(String(Math.round(value)));
+  };
+
+  const beginHeadingEdit = (heading: string, value: number) => {
+    setEditingHeading(heading);
+    setEditingSummaryKey(null);
+    setEditingValue(String(Math.round(value)));
+  };
+
+  const commitSummaryEdit = () => {
+    if (!editingSummaryKey) return;
+    const parsed = Number(editingValue.replace(/,/g, "").trim());
+    if (!Number.isNaN(parsed)) {
+      onSummaryOverrideChange?.(editingSummaryKey, parsed);
+    }
+    setEditingSummaryKey(null);
+    setEditingValue("");
+  };
+
+  const commitHeadingEdit = () => {
+    if (!editingHeading) return;
+    const parsed = Number(editingValue.replace(/,/g, "").trim());
+    if (!Number.isNaN(parsed)) {
+      onHeadingOverrideChange?.(editingHeading, parsed);
+    }
+    setEditingHeading(null);
+    setEditingValue("");
+  };
+
+  const cancelEdit = () => {
+    setEditingSummaryKey(null);
+    setEditingHeading(null);
+    setEditingValue("");
+  };
 
   const defaultSupplierTargets = [
     { code: "DSSCRTY", label: "DS Security" },
@@ -182,7 +238,29 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
         {summaryCards.map((c) => (
           <div key={c.label} className={`rounded-xl border p-4 min-h-[128px] flex flex-col ${c.bg} ${c.border}`}>
             <p className="min-h-[2.4rem] text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide leading-tight">{c.label}</p>
-            <p className={`text-4xl font-bold leading-none mt-auto ${c.color}`}>{c.value}</p>
+            {editable && editingSummaryKey === c.key ? (
+              <input
+                type="text"
+                value={editingValue}
+                onChange={(e) => setEditingValue(e.target.value)}
+                onBlur={commitSummaryEdit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitSummaryEdit();
+                  if (e.key === "Escape") cancelEdit();
+                }}
+                autoFocus
+                className="mt-auto rounded border border-emerald-300 bg-white px-2 py-1 text-right text-xl font-bold text-gray-900 dark:border-emerald-700 dark:bg-gray-900 dark:text-white"
+              />
+            ) : (
+              <button
+                type="button"
+                disabled={!editable}
+                onClick={() => beginSummaryEdit(c.key, summaryOverrides[c.key] ?? c.raw)}
+                className={`mt-auto text-left ${editable ? "cursor-pointer" : "cursor-default"}`}
+              >
+                <p className={`text-4xl font-bold leading-none ${c.color}`}>{fmt(summaryOverrides[c.key] ?? c.raw)}</p>
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -246,7 +324,30 @@ export default function BudgetDashboard({ budget }: BudgetDashboardProps) {
                       style={{ backgroundColor: SECTION_COLORS[index % SECTION_COLORS.length] }}
                     />
                     <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                    <span className="shrink-0 font-medium text-gray-500 dark:text-gray-400">{fmt(item.value)}</span>
+                    {editable && editingHeading === item.name ? (
+                      <input
+                        type="text"
+                        value={editingValue}
+                        onChange={(e) => setEditingValue(e.target.value)}
+                        onBlur={commitHeadingEdit}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitHeadingEdit();
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                        autoFocus
+                        className="w-28 rounded border border-emerald-300 bg-white px-2 py-1 text-right text-xs font-medium text-gray-700 dark:border-emerald-700 dark:bg-gray-900 dark:text-gray-200"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!editable}
+                        onClick={() => beginHeadingEdit(item.name, headingOverrides[item.name] ?? item.value)}
+                        className="shrink-0 font-medium text-gray-500 dark:text-gray-400"
+                        title={editable ? "Click to edit" : undefined}
+                      >
+                        {fmt(headingOverrides[item.name] ?? item.value)}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

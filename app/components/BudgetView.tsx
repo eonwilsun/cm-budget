@@ -28,6 +28,13 @@ interface CashAtBankItem {
   balance: number;
 }
 
+type DashboardOverrides = {
+  summary: Record<string, number>;
+  headings: Record<string, number>;
+};
+
+const DASHBOARD_OVERRIDES_KEY = "cm-budget.dashboard-overrides";
+
 function allSectionNames(budget: ParsedBudget): Set<string> {
   return new Set(budget.rows.filter((r) => r.rowType === "section").map((r) => r.sectionName || r.name));
 }
@@ -501,6 +508,7 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
   const budgetWithSharedBreakdown = applySharedBreakdownToBudget(budget);
   const [activeTab, setActiveTab] = useState<Tab>("report");
   const [editMode, setEditMode] = useState(false);
+  const [dashboardOverrides, setDashboardOverrides] = useState<DashboardOverrides>({ summary: {}, headings: {} });
   const [cashAtBankItems, setCashAtBankItems] = useState<CashAtBankItem[]>([]);
   const [cashDropActive, setCashDropActive] = useState(false);
   const [cashUploadLoading, setCashUploadLoading] = useState(false);
@@ -511,6 +519,55 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
 
   // Download state
   const [exporting, setExporting] = useState<string | null>(null);
+
+  const viewFingerprint = `${fileName}::${budget.sheetName}::${budget.rows.length}`;
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(DASHBOARD_OVERRIDES_KEY);
+      if (!raw) {
+        setDashboardOverrides({ summary: {}, headings: {} });
+        return;
+      }
+      const parsed = JSON.parse(raw) as { fingerprint?: string; overrides?: DashboardOverrides };
+      if (parsed.fingerprint !== viewFingerprint || !parsed.overrides) {
+        setDashboardOverrides({ summary: {}, headings: {} });
+        return;
+      }
+      setDashboardOverrides(parsed.overrides);
+    } catch {
+      setDashboardOverrides({ summary: {}, headings: {} });
+      window.localStorage.removeItem(DASHBOARD_OVERRIDES_KEY);
+    }
+  }, [viewFingerprint]);
+
+  useEffect(() => {
+    const payload = {
+      fingerprint: viewFingerprint,
+      overrides: dashboardOverrides,
+    };
+    window.localStorage.setItem(DASHBOARD_OVERRIDES_KEY, JSON.stringify(payload));
+  }, [dashboardOverrides, viewFingerprint]);
+
+  const handleSummaryOverrideChange = useCallback((key: string, value: number) => {
+    setDashboardOverrides((prev) => ({
+      ...prev,
+      summary: {
+        ...prev.summary,
+        [key]: value,
+      },
+    }));
+  }, []);
+
+  const handleHeadingOverrideChange = useCallback((heading: string, value: number) => {
+    setDashboardOverrides((prev) => ({
+      ...prev,
+      headings: {
+        ...prev.headings,
+        [heading]: value,
+      },
+    }));
+  }, []);
 
   // Refs for capture
   const dashboardRef = useRef<HTMLDivElement>(null);
@@ -994,7 +1051,14 @@ export default function BudgetView({ budget, fileName, onReset, isSavedBudget = 
       {activeTab === "dashboard" && (
         <section id="budget-dashboard-section">
           <div ref={dashboardRef}>
-            <BudgetDashboard budget={budgetWithSharedBreakdown} />
+            <BudgetDashboard
+              budget={budgetWithSharedBreakdown}
+              editable={Boolean(onBudgetChange)}
+              summaryOverrides={dashboardOverrides.summary}
+              headingOverrides={dashboardOverrides.headings}
+              onSummaryOverrideChange={handleSummaryOverrideChange}
+              onHeadingOverrideChange={handleHeadingOverrideChange}
+            />
           </div>
         </section>
       )}

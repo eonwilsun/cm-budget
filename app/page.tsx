@@ -11,6 +11,14 @@ import Dashboard from "./components/Dashboard";
 import BudgetView from "./components/BudgetView";
 
 const SAVED_BUDGET_KEY = "cm-budget.saved-budget";
+const LAST_BUDGET_VIEW_KEY = "cm-budget.last-budget-view";
+const DASHBOARD_OVERRIDES_KEY = "cm-budget.dashboard-overrides";
+
+type LastBudgetViewState = {
+  budget: ParsedBudget;
+  fileName: string;
+  isViewingSavedBudget: boolean;
+};
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>("idle");
@@ -43,6 +51,31 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(LAST_BUDGET_VIEW_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as LastBudgetViewState;
+      if (!parsed?.budget) return;
+      const normalizedBudget = normalizeBudgetSubsections(parsed.budget);
+      setBudgetData(normalizedBudget);
+      setFileName(parsed.fileName ?? "");
+      setIsViewingSavedBudget(Boolean(parsed.isViewingSavedBudget));
+      setAppState("budget");
+    } catch {
+      window.localStorage.removeItem(LAST_BUDGET_VIEW_KEY);
+    }
+  }, []);
+
+  const persistLastBudgetView = useCallback((budget: ParsedBudget, nextFileName: string, viewingSaved: boolean) => {
+    const payload: LastBudgetViewState = {
+      budget,
+      fileName: nextFileName,
+      isViewingSavedBudget: viewingSaved,
+    };
+    window.localStorage.setItem(LAST_BUDGET_VIEW_KEY, JSON.stringify(payload));
+  }, []);
+
   const persistBudget = useCallback((budget: ParsedBudget) => {
     const normalizedBudget = normalizeBudgetSubsections(budget);
     setSavedBudget(normalizedBudget);
@@ -56,15 +89,18 @@ export default function Home() {
     const normalizedBudget = normalizeBudgetSubsections(budget);
     setBudgetData(normalizedBudget);
     setIsViewingSavedBudget(false);
-  }, []);
+    persistLastBudgetView(normalizedBudget, fileName, false);
+  }, [fileName, persistLastBudgetView]);
 
   const saveCurrentBudget = useCallback((budget: ParsedBudget) => {
     const normalizedBudget = normalizeBudgetSubsections(budget);
     setBudgetData(normalizedBudget);
     setIsViewingSavedBudget(true);
-    setFileName(`Saved Budget · ${normalizedBudget.sheetName}`);
+    const nextFileName = `Saved Budget · ${normalizedBudget.sheetName}`;
+    setFileName(nextFileName);
     persistBudget(normalizedBudget);
-  }, []);
+    persistLastBudgetView(normalizedBudget, nextFileName, true);
+  }, [persistBudget, persistLastBudgetView]);
 
   const handleBudgetChange = useCallback((nextBudget: ParsedBudget) => {
     const normalizedBudget = normalizeBudgetSubsections(nextBudget);
@@ -72,16 +108,19 @@ export default function Home() {
     if (isViewingSavedBudget) {
       persistBudget(normalizedBudget);
     }
-  }, [isViewingSavedBudget, persistBudget]);
+    persistLastBudgetView(normalizedBudget, fileName, isViewingSavedBudget);
+  }, [fileName, isViewingSavedBudget, persistBudget, persistLastBudgetView]);
 
   const openSavedBudget = useCallback(() => {
     if (!savedBudget) return;
     setError(null);
     setBudgetData(savedBudget);
     setIsViewingSavedBudget(true);
-    setFileName(`Saved Budget · ${savedBudget.sheetName}`);
+    const nextFileName = `Saved Budget · ${savedBudget.sheetName}`;
+    setFileName(nextFileName);
     setAppState("budget");
-  }, [savedBudget]);
+    persistLastBudgetView(savedBudget, nextFileName, true);
+  }, [persistLastBudgetView, savedBudget]);
 
   const clearSavedBudget = useCallback(() => {
     window.localStorage.removeItem(SAVED_BUDGET_KEY);
@@ -90,6 +129,8 @@ export default function Home() {
       setBudgetData(null);
       setAppState("idle");
       setIsViewingSavedBudget(false);
+      window.localStorage.removeItem(LAST_BUDGET_VIEW_KEY);
+      window.localStorage.removeItem(DASHBOARD_OVERRIDES_KEY);
     }
   }, [isViewingSavedBudget]);
 
@@ -142,6 +183,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setFileName(file.name);
+    window.localStorage.removeItem(DASHBOARD_OVERRIDES_KEY);
     try {
       if (file.name.toLowerCase().endsWith(".pdf")) {
         const parsed = await parseNominalActivityPdf(file);
@@ -183,6 +225,8 @@ export default function Home() {
     setSectionBalances([]);
     setBudgetData(null);
     setIsViewingSavedBudget(false);
+    window.localStorage.removeItem(LAST_BUDGET_VIEW_KEY);
+    window.localStorage.removeItem(DASHBOARD_OVERRIDES_KEY);
   }, []);
 
   const showNewUploadBtn = appState === "dashboard" || appState === "budget";
