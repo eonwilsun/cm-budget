@@ -569,7 +569,7 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
       .filter(Boolean);
 
     for (const line of pageLines) {
-      const metadataMatch = line.match(/^n\/c\s*:\s*(\d+)\s+name\s*:\s*(.*?)\s+account balance\s*:/i);
+      const metadataMatch = line.match(/^n\/c\s*:?\s*(\d+)\s+name\s*:?\s*(.*?)\s+account\s*balance\s*:?/i);
       if (metadataMatch) {
         currentCode = metadataMatch[1].trim();
         currentName = metadataMatch[2].trim();
@@ -577,14 +577,22 @@ export async function parseNominalActivityPdf(file: File): Promise<ParsedBudget>
         continue;
       }
 
-      const codeOnlyMatch = line.match(/^n\/c\s*:\s*(\d+)$/i);
+      const codeAndNameMatch = line.match(/^n\/c\s*:?\s*(\d+)\s+name\s*:?\s*(.+)$/i);
+      if (codeAndNameMatch) {
+        currentCode = codeAndNameMatch[1].trim();
+        currentName = codeAndNameMatch[2].replace(/\s+account\s*balance\s*:?.*$/i, "").trim();
+        pendingTxnPrefix = "";
+        continue;
+      }
+
+      const codeOnlyMatch = line.match(/^n\/c\s*:?\s*(\d+)$/i);
       if (codeOnlyMatch) {
         currentCode = codeOnlyMatch[1].trim();
         pendingTxnPrefix = "";
         continue;
       }
 
-      const nameOnlyMatch = line.match(/^name\s*:\s*(.+)$/i);
+      const nameOnlyMatch = line.match(/^name\s*:?\s*(.+)$/i);
       if (nameOnlyMatch) {
         currentName = nameOnlyMatch[1].replace(/\s+account balance\s*:?.*$/i, "").trim();
         pendingTxnPrefix = "";
